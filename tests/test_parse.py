@@ -19,7 +19,6 @@ class Test(unittest.TestCase):
         self.assertEqual(parse.simple_name('Политическая партия "Российская экологическая партия "Зеленые"'), '"Российская экологическая партия "Зеленые"')
         self.assertEqual(parse.simple_name('Политическая партия "Партия народной свободы" (ПАРНАС)'), '"Партия народной свободы" (ПАРНАС)')
 
-
     def test_simple_table_meta(self):
         self.assertEqual(parse.simple_table_meta(self.simple_table_html),
         [
@@ -56,6 +55,9 @@ class Test(unittest.TestCase):
             {'name': 'Политическая партия "ПАТРИОТЫ РОССИИ"', 'name_simple': '"ПАТРИОТЫ РОССИИ"', 'is_meta': False},
             {'name': 'Политическая партия СПРАВЕДЛИВАЯ РОССИЯ', 'name_simple': 'СПРАВЕДЛИВАЯ РОССИЯ', 'is_meta': False}
         ])
+
+    def test_get_region_from_url(self):
+        self.assertEqual(parse.get_region_from_url("http://www.adygei.vybory.izbirkom.ru/region/region/adygei?action=show&root=12000001&tvd=2012000133849&vrn=100100022176412&region=1&global=true&sub_region=1&prver=0&pronetvd=null&vibid=2012000133849&type=227"), 'adygei')
 
 if __name__ == '__main__':
     unittest.main()

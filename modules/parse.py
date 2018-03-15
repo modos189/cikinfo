@@ -175,6 +175,9 @@ def _simple_table_meta(table):
 def simple_table_meta(html):
     soup = __get_soup__(html)
     table = soup.find_all('table')[-3]
+    # В итогах выборов президента 2008 на одну таблицу меньше, потому берем не 3 с конца, а 2
+    if len(table.find_all('tr')) == 1:
+        table = soup.find_all('table')[-2]
     return _simple_table_meta(table)
 
 
@@ -195,7 +198,7 @@ def two_dimensional_table(html):
         data_rows = table_uiks.find_all('tr')[1:]
 
         # Массив результатов выборов для конкретного УИКа
-        data_tmp = {}
+        res = {}
         n = 0
         # Перебор строк с данными
         for row in data_rows:
@@ -207,8 +210,21 @@ def two_dimensional_table(html):
                 tag_b = data_column[k].find('b')
                 if tag_b:
                     num = tag_b.text
-                    data_tmp[str(n)] = num
+                    res[str(n)] = int(num)
                     n += 1
 
-        data.append(RawUIKRecord(spl[0], spl[1], data_tmp))
+        if res['0'] == 0:
+            res['share'] = 0
+        else:
+            res['share'] = round(float(res['6'] + res['7']) / res['0'] * 100, 2)
+
+        res['number_bulletin'] = res['8'] + res['9']
+
+        data.append(RawUIKRecord(spl[0], spl[1], res))
     return data
+
+
+# Возвращает название региона, который указан в поддомене
+def get_region_from_url(url):
+    url = url.split('.')
+    return url[1]

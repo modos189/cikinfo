@@ -8,10 +8,6 @@ HEADERS = {
 }
 
 
-def print_area(_area):
-    print([item[1] for item in _area])
-
-
 def hash_item(item):
     return sha1(item.encode('utf8')).hexdigest()
 
@@ -50,3 +46,19 @@ def get_datetime(s):
     ]
     month = local_months.index(s[1])
     return datetime(int(s[2]), month, int(s[0]))
+
+
+# Суммирование результатов участков
+# Первый параметр может быть пустым словарём, на случай, если каркас словаря ещё не сформирван
+def sum_results(data1, data2):
+    data_new = data2.copy()
+    for k in data_new:
+        if k in data1:
+            data_new[k] += data1[k]
+
+    if data_new['0'] == 0:
+        data_new['share'] = 0
+    else:
+        data_new['share'] = round(float(data_new['6'] + data_new['7']) / data_new['0'] * 100, 2)
+
+    return data_new

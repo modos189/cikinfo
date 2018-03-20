@@ -1,3 +1,7 @@
+import aiohttp
+import asyncio
+import async_timeout
+
 import requests
 from time import sleep
 from datetime import datetime
@@ -12,28 +16,23 @@ def hash_item(item):
     return sha1(item.encode('utf8')).hexdigest()
 
 
-def _download_url(url):
+async def fetch(session, url, retry=0):
     try:
-        response = requests.get(
-            url,
-            headers=HEADERS,
-            timeout=30
-        )
-        return response.content.decode('windows-1251')
-    except requests.RequestException:
-        return None
+        async with async_timeout.timeout(5):
+            async with session.get(url, headers=HEADERS) as response:
+                return await response.text(encoding='windows-1251')
 
+    except asyncio.TimeoutError:
+        retry += 1
+        if retry > 30:
+            raise TimeoutError()
+        await asyncio.sleep(retry)
+        return await fetch(session, url, retry=retry)
 
-def download_url(url):
-    html = None
-    for i in range(5):
-        html = _download_url(url)
-        # в случае ошибки доступа к сайту повтор попытки
-        if html is None:
-            sleep(30)
-        else:
-            break
-    return html
+async def async_download_url(url):
+        async with aiohttp.ClientSession() as session:
+            html = await fetch(session, url)
+            return html
 
 
 # Преобразует локализованную запись в datetime

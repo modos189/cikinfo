@@ -19,7 +19,7 @@ body {
     margin: 0;
     background-color: #828282;
     color: #d1d1d180;
-    text-shadow: 0px 2px 3px rgba(255, 255, 255, 0.51);
+    text-shadow: 0px 2px 2px rgba(255, 255, 255, 0.51);
     -webkit-background-clip: text;
      -moz-background-clip: text;
           background-clip: text;
@@ -103,6 +103,10 @@ body {
     display: inline-block;
     font-size: 80%;
     margin: 0;
+}
+
+.left-info-head {
+    display: flex;
 }
 
 #left-info .left-info-name {
@@ -265,7 +269,10 @@ body {
 
 
 #graph {
-    border-bottom: 20px solid white;
+    background: #fff;
+    padding-bottom: 20px;
+    border: 1px solid lightgrey;
+    border-top: 0;
 }
 
 .left-info-block {
@@ -283,6 +290,7 @@ body {
     padding: 5px !important;
     border: 1px solid rgba(33, 33, 33, 0.8);
     border-top: 1px solid rgba(75, 75, 75, 0.8);
+    border-right: 1px solid rgba(75, 75, 75, 0.8);
     background: #353535;
     color: #fff;
     transition: background-color .1s, border-top-color .1s;
@@ -290,9 +298,24 @@ body {
 
 .left-info-block > div:hover {
     background-color: #252525;
-    border-top-color: rgba(0, 0, 0, 0)
+    border-top-color: rgba(75, 75, 75, 0.2);
+    border-right-color: rgba(75, 75, 75, 0.2);
 }
 
+.left-info-block-stat {
+    flex-basis: 300px;
+    border-radius: 5px 0 0 5px;
+}
+
+.left-info-block-share {
+    text-align: center;
+    font-size: 14px;
+    border-radius: 0 5px 5px 0;
+}
+.left-info-block-share div {
+    height: 64px;
+    padding: 27px 0 0 0 !important;
+}
 
 
 ._dash-undo-redo {

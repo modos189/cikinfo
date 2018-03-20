@@ -9,6 +9,9 @@ from bson.objectid import ObjectId
 
 import textwrap
 
+SITE = 'https://cikinfo.modos189.ru'
+#SITE = 'http://modos189.lh/cikinfo'
+
 
 class Dash_responsive(dash.Dash):
     def __init__(self, *args, **kwargs):
@@ -25,7 +28,7 @@ class Dash_responsive(dash.Dash):
         <html>
             <head>
                 <meta charset="UTF-8"/>
-                <meta property="og:image" content="https://cikinfo.modos189.ru/data/logo.png">
+                <meta property="og:image" content="'''+SITE+'''/data/logo.png">
                 <title>{}</title>
                 {}
             </head>
@@ -47,12 +50,12 @@ class Dash_responsive(dash.Dash):
 app = Dash_responsive()
 app.title = 'ЦИК Инфо | Удобный просмотр статистики избиркома'
 app.css.append_css({
-    "external_url": ["https://cikinfo.modos189.ru/data/user.css",
-                     "https://cikinfo.modos189.ru/data/pace-theme-flash.css"]
+    "external_url": [SITE+"/data/user.css",
+                     SITE+"/data/pace-theme-flash.css"]
 })
 app.scripts.append_script({
-    "external_url": ["https://cikinfo.modos189.ru/data/user.js",
-                     "https://cikinfo.modos189.ru/data/pace.min.js"]
+    "external_url": [SITE+"/data/user.js",
+                     SITE+"/data/pace.min.js"]
 })
 
 client = MongoClient()
@@ -89,7 +92,7 @@ def get_elections_options(start_date, end_date):
 
     opt = []
     for el in db.election.find({'date': {'$lt': end_date, '$gte': start_date}}):
-        opt.append({'label': el['name'], 'value': el['_id']})
+        opt.append({'label': str(el['date'].year)+' — '+el['name'], 'value': el['_id']})
     return opt
 
 
@@ -100,7 +103,10 @@ def get_area_options(level, p, election):
         parent = [ObjectId(el) for el in p]
         where['parent_id'] = {"$in": parent}
 
-    opt = [{'label': el['name'], 'value': str(el['_id'])} for el in db.area.find(where)]
+    opt = [{
+               'label': el['name'] if el['num'] is None else str(el['num'])+' — '+el['name'],
+               'value': str(el['_id'])
+           } for el in db.area.find(where)]
     return opt
 
 
@@ -168,7 +174,7 @@ app.layout = html.Div([
                 """xNDJjNC40NzQsMi44NjksOS43ODYsNC41NDEsMTUuNDkzLDQuNTQxICBjMTguNTkxLDAsMjguNzU2LTE1LjQsMjguNzU2LTI4"""+
                 """Ljc1NmMwLTAuNDM4LTAuMDA5LTAuODc1LTAuMDI4LTEuMzA5QzQ5Ljc2OSwxOC44NzMsNTEuNDgzLDE3LjA5Miw1Mi44MzcsM"""+
                 """TUuMDY1eiIvPjwvc3ZnPg==""")
-            ], href="http://twitter.com/share?text=Найди фальсификации на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url=https://cikinfo.modos189.ru", target="_blank", id="left-button-twitter"),
+            ], href="http://twitter.com/share?text=Найди фальсификации на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url="+SITE, target="_blank", id="left-button-twitter"),
             html.A([
                 html.Img(src="""data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQy"""+
                 """AnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTE"""+
@@ -196,7 +202,7 @@ app.layout = html.Div([
                 """ODNjMS45NjcsMC4wNjgsNC4xNy0wLjM1OSw2LjEyMS0wLjA4NCAgIGM4LjQxNiwxLjE4OC0xMC41NzgsMTkuMTkxLTkuNTksM"""+
                 """jIuNDAzYzAuNjg0LDIuMjE4LDUuMDE2LDQuNzAzLDYuNTgsNi41MjFDODIuOTk4LDYxLjk5MSw4OS4zODksNjYuODEsODQuND"""+
                 """E4LDY5LjkyMXoiIGZpbGw9IiM0NDQiLz48L2c+PGcgaWQ9Im9mZnNldF94NUZfcHJpbnRfeDVGX291dGxpbmUiLz48L3N2Zz4=""")
-            ], href="https://vk.com/share.php?url=https%3A%2F%2Fcikinfo.modos189.ru", target="_blank", id="left-button-vk"),
+            ], href="https://vk.com/share.php?url="+SITE, target="_blank", id="left-button-vk"),
             html.A([
                 html.Img(src="""data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQy"""+
                 """AnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTE"""+
@@ -246,10 +252,11 @@ app.layout = html.Div([
         ], className="election-bar"),
         dcc.Tabs(
             tabs=[
-                {'label': 'Явка / Доля голосов', 'value': 0},
-                {'label': 'Явка / Число участков', 'value': 1},
-                {'label': 'Явка / Кол-во избирателей', 'value': 2}
-                ],
+                {'label': 'Доля голосов', 'value': 0},
+                {'label': 'Число участков', 'value': 1},
+                {'label': 'Кол-во избирателей', 'value': 2},
+                {'label': 'Номер участка', 'value': 3}
+            ],
             value=0,
             id='tabs'
         ),
@@ -270,28 +277,28 @@ app.layout = html.Div([
                 ]),
             ], className="help-slide help-slide__showing"),
             html.Li([
-                html.Img(src="https://cikinfo.modos189.ru/data/help-img-1.png"),
+                html.Img(src=SITE+"/data/help-img-1.png"),
                 html.H1('Первым делом необходимо указать, какие выборы будем анализировать'),
             ], className="help-slide"),
             html.Li([
-                html.Img(src="https://cikinfo.modos189.ru/data/help-img-2.png"),
+                html.Img(src=SITE+"/data/help-img-2.png"),
                 html.H1('Есть возможность указать временной промежуток, чтобы отфильтровать список выборов'),
             ], className="help-slide"),
             html.Li([
-                html.Img(src="https://cikinfo.modos189.ru/data/help-img-3.png"),
+                html.Img(src=SITE+"/data/help-img-3.png"),
                 html.H1('Слева можно указать территорию, для которой будет сформирована статистика'),
             ], className="help-slide"),
             html.Li([
-                html.Img(src="https://cikinfo.modos189.ru/data/help-img-4.png"),
-                html.H1('Статистика формируется в виде трёх интерактивных графиков'),
+                html.Img(src=SITE+"/data/help-img-4.png"),
+                html.H1('Статистика формируется в виде четырёх интерактивных графиков'),
             ], className="help-slide"),
             html.Li([
-                html.Img(src="https://cikinfo.modos189.ru/data/help-img-5.png"),
+                html.Img(src=SITE+"/data/help-img-5.png"),
                 html.H1(['С помощью Box Select или Lasso Select можно выбрать точки на графике, чтобы под графиком '
                          'получить подробную информацию о них, в т.ч. адреса УИКов']),
             ], className="help-slide"),
             html.Li([
-                html.Img(src="https://cikinfo.modos189.ru/data/help-img-6.png"),
+                html.Img(src=SITE+"/data/help-img-6.png"),
                 html.H1(['Не забудьте поделиться ссылкой с друзьями или пожертвовать на более мощный сервер, если вам '
                          'нравится этот сервис']),
             ], className="help-slide"),
@@ -423,18 +430,23 @@ def left_info_all(level1, level2, level3, election_id):
     return [
             html.Div([
                 html.Div([
-                    html.P('Всего избирателей:', className="left-info-name"),
-                    html.P(results['0'], className="left-info-num", id='left-info-all'),
-                ], title="Число избирателей, внесенных в список избирателей на момент окончания голосования"),
+                    html.Div([
+                        html.P('Всего избирателей:', className="left-info-name"),
+                        html.P(results['0'], className="left-info-num", id='left-info-all'),
+                    ], title="Число избирателей, внесенных в список избирателей на момент окончания голосования"),
+                    html.Div([
+                        html.P('Голосов в помещении:', className="left-info-name"),
+                        html.P(results['3'], className="left-info-num", id='left-info-indoors'),
+                    ], title="Число избирательных бюллетеней, выданных в помещении для голосования в день голосования"),
+                    html.Div([
+                        html.P('Голосов вне помещения:', className="left-info-name"),
+                        html.P(results['4'], className="left-info-num", id='left-info-outdoors'),
+                    ], title="Число избирательных бюллетеней, выданных вне помещения для голосования в день голосования"),
+                ], className="left-info-block left-info-block-stat"),
                 html.Div([
-                    html.P('Голосов в помещении:', className="left-info-name"),
-                    html.P(results['3'], className="left-info-num", id='left-info-indoors'),
-                ], title="Число избирательных бюллетеней, выданных в помещении для голосования в день голосования"),
-                html.Div([
-                    html.P('Голосов вне помещения:', className="left-info-name"),
-                    html.P(results['4'], className="left-info-num", id='left-info-outdoors'),
-                ], title="Число избирательных бюллетеней, выданных вне помещения для голосования в день голосования"),
-            ], className="left-info-block"),
+                    html.Div([html.B([str(results['share'])+'%']), ' явка']),
+                ], className="left-info-block left-info-block-share"),
+            ], className="left-info-head"),
             html.Div(html_candidates, className="left-info-block left-info-block-candidates"),
         ]
 
@@ -495,13 +507,13 @@ def update_graph(level1_val, level1_opt,
 
     uiks = db.area.find(
         {'results_tags': election_id, 'parent_id': {'$in': area}},
-        {'name': True, 'address': True, 'results.' + election_id: True}
+        {'num': True, 'name': True, 'address': True, 'results.' + election_id: True}
     ).limit(1000)  # TODO
 
     if uiks.count() == 0:
         uiks = db.area.find(
             {'results_tags': election_id, '_id': {'$in': area}},
-            {'name': True, 'address': True, 'results.' + election_id: True}
+            {'num': True, 'name': True, 'address': True, 'results.' + election_id: True}
         ).limit(1000)  # TODO
 
     col = list(uiks)
@@ -509,6 +521,8 @@ def update_graph(level1_val, level1_opt,
     k = 0
     markers = []
 
+    xaxis_title = "Явка"
+    xaxis_range = [0, 105]
     yaxis_title = ""
     autorange = False
     if tab == 0:
@@ -565,16 +579,9 @@ def update_graph(level1_val, level1_opt,
             go.Scattergl(
                 x=[i for i, item in enumerate(data)],
                 y=[item for item in data],
-                # text=[
-                #     item['name'] + '</br>'
-                #     + 'Всего избирателей: ' + str(item['results'][election_id]['1']) + '</br>'
-                #     + 'Голос в помещении: ' + str(item['results'][0]['3']) + '</br>'
-                #     + 'Голос вне помещения: ' + str(item['results'][0]['4']) for item in col],
-                # customdata=[item['name'] for item in col],
-                # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
                 mode='lines',
                 marker={
-                    'color': colors[k],
+                    'color': colors[0],
                     'size': 8,
                     'opacity': 0.5,
                     'line': {'width': 0.5, 'color': 'white'}
@@ -606,7 +613,7 @@ def update_graph(level1_val, level1_opt,
                 # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
                 mode='markers',
                 marker={
-                    'color': colors[k],
+                    'color': colors[0],
                     'size': 8,
                     'opacity': 0.5,
                     'line': {'width': 0.5, 'color': 'white'}
@@ -614,24 +621,64 @@ def update_graph(level1_val, level1_opt,
             )
         )
 
+    elif tab == 3:
+        xaxis_title = "Номера участков"
+        xaxis_range = None
+        yaxis_title = "Явка"
+        autorange = True
+
+        if len(col) > 0 and 'num' in col[0] and col[0]['num'] is not None:
+
+            # Сортировка по номеру
+            OrderCol = sorted(col, key=lambda k: k['num'])
+
+            markers.append(
+                go.Bar(
+                    # добавлен невидимый символ к номеру, чтобы библиотека визуализации данных обрабатывала как текст
+                    # и не делала пропуски, если участки идут не подряд
+                    x=[str(item['num'])+' ​' for item in OrderCol],
+                    y=[item['results'][election_id]['share'] for item in OrderCol],
+                    text=[
+                        item['name'] + '</br>'
+                        + 'Всего избирателей: ' + str(item['results'][election_id]['0']) + '</br>'
+                        + 'Голос в помещении: ' + str(item['results'][election_id]['3']) + '</br>'
+                        + 'Голос вне помещения: ' + str(item['results'][election_id]['4']) for item in OrderCol],
+                    customdata=[{
+                                    'name': item['name'],
+                                    'address': (item['address'] if 'address' in item else ''),
+                                    'total': item['results'][election_id]['0'],
+                                    'votes_inroom': item['results'][election_id]['3'],
+                                    'votes_outroom': item['results'][election_id]['4'],
+                                    'share': item['results'][election_id]['share']
+                                } for item in OrderCol],
+                    # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
+                    # type='bar',
+                    # mode='markers',
+                    marker={
+                        'color': colors[0],
+                        #'size': 8,
+                        'opacity': 0.5,
+                        'line': {'width': 0.5, 'color': 'white'}
+                    }
+                )
+            )
+
     return {
         'data': markers,
         'layout': go.Layout(
             xaxis={
-                'title': "Явка",
-                'type': 'linear',  # if xaxis_type == 'Linear' else 'log'
-                'range': [0, 105]
+                'title': xaxis_title,
+                'range': xaxis_range
             },
             yaxis={
                 'title': yaxis_title,
-                'type': 'linear',  # if yaxis_type == 'Linear' else 'log'
                 'range': [0, 105],
                 'autorange': autorange
             },
             margin=go.Margin(
                 l=80,
                 r=30,
-                b=40,
+                b=55,
                 t=10
             ),
             legend=go.Legend(

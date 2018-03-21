@@ -485,3 +485,13 @@ body {
 .help-controls-ok {
     line-height: 78px;
 }
+
+#watermark {
+    float: right;
+    position: relative;
+    bottom: 34px;
+    right: 22px;
+    color: rgb(68, 68, 68);
+    font-weight: 300;
+    font-size: 13px;
+}

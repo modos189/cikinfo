@@ -1,12 +1,13 @@
 import dash
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
 import datetime
 from pymongo import MongoClient
 from bson.objectid import ObjectId
-
+import json
+import urllib.parse
 import textwrap
 
 SITE = 'https://cikinfo.modos189.ru'
@@ -262,6 +263,7 @@ app.layout = html.Div([
         ),
         html.Div([
             dcc.Graph(id='graph'),
+            html.Span('https://cikinfo.modos189.ru', id="watermark")
         ]),
         html.Div(id='selected-data')
     ], className="main-bar"),
@@ -314,6 +316,12 @@ app.layout = html.Div([
         html.Div('>', className="help-controls", id="help-next"),
         html.Div([], id="help-shadow"),
     ], id="help-wrapper", className="help-wrapper"),
+    html.Div([
+        dcc.Location(id='test-location', refresh=False),
+        html.Div(id='page-url-content'),
+        html.Div('', id='page-hack'),
+        html.Div('', id='page-hack-2'),
+    ], style={'display': 'none'})
 ])
 
 
@@ -334,10 +342,168 @@ def area_level_1_options(election):
     return get_area_options(level, [], election)
 
 
+########################################################################################################################
+# < Синхронизация выбранных значений с URL >
+########################################################################################################################
+@app.callback(
+    Output('elections', 'value'),
+    [Input('page-url-content', 'children')],
+    [State('elections', 'value')]
+)
+def get_data_from_url_elections(json_data, old_content):
+    try:
+        data = json.loads(json_data)
+        if 'elections' in data:
+            return data['elections']
+        else:
+            return old_content
+    except json.decoder.JSONDecodeError:
+        return old_content
 
 
+@app.callback(
+    Output('date-slider', 'value'),
+    [Input('page-url-content', 'children')],
+    [State('date-slider', 'value')]
+)
+def get_data_from_url_date_slider(json_data, old_content):
+    try:
+        data = json.loads(json_data)
+        if 'date-slider' in data:
+            return data['date-slider']
+        else:
+            return old_content
+    except json.decoder.JSONDecodeError:
+        return old_content
 
 
+@app.callback(
+    Output('area-level-1', 'value'),
+    [Input('page-url-content', 'children')],
+    [State('area-level-1', 'value')]
+)
+def get_data_from_url_area_level_1(json_data, old_content):
+    try:
+        data = json.loads(json_data)
+        if 'area-level-1' in data:
+            return data['area-level-1']
+        else:
+            return old_content
+    except json.decoder.JSONDecodeError:
+        return old_content
+
+
+@app.callback(
+    Output('area-level-2', 'value'),
+    [Input('page-url-content', 'children')],
+    [State('area-level-2', 'value')]
+)
+def get_data_from_url_area_level_2(json_data, old_content):
+    try:
+        data = json.loads(json_data)
+        if 'area-level-2' in data:
+            return data['area-level-2']
+        else:
+            return old_content
+    except json.decoder.JSONDecodeError:
+        return old_content
+
+
+@app.callback(
+    Output('area-level-3', 'value'),
+    [Input('page-url-content', 'children')],
+    [State('area-level-3', 'value')]
+)
+def get_data_from_url_area_level_3(json_data, old_content):
+    try:
+        data = json.loads(json_data)
+        if 'area-level-3' in data:
+            return data['area-level-3']
+        else:
+            return old_content
+    except json.decoder.JSONDecodeError:
+        return old_content
+
+
+@app.callback(
+    Output('tabs', 'value'),
+    [Input('page-url-content', 'children')],
+    [State('tabs', 'value')]
+)
+def get_data_from_url_area_level_1(json_data, old_content):
+    try:
+        data = json.loads(json_data)
+        if 'tabs' in data:
+            return data['tabs']
+        else:
+            return old_content
+    except json.decoder.JSONDecodeError:
+        return old_content
+
+
+@app.callback(
+    Output('page-url-content', 'children'),
+    [Input('page-hack-2', 'children')],
+    [State('test-location', 'pathname'), State('page-url-content', 'children')]
+)
+def get_data_from_url(_, pathname, old_content):
+    if pathname is not None:
+        json_data = urllib.parse.unquote(pathname)[6:]
+        return json_data
+    else:
+        return '{}'
+
+
+@app.callback(
+    Output('left-button-twitter', 'href'),
+    [Input('test-location', 'pathname')])
+def update_url_twitter(pathname):
+    return "http://twitter.com/share?text=Найди фальсификации на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url="+SITE+pathname
+
+
+@app.callback(
+    Output('left-button-vk', 'href'),
+    [Input('test-location', 'pathname')])
+def update_url_twitter(pathname):
+    return "https://vk.com/share.php?url="+SITE+pathname
+
+
+@app.callback(
+    output=Output('test-location', 'pathname'),
+    inputs=[
+        Input('elections', 'value'),
+        Input('date-slider', 'value'),
+        Input('area-level-1', 'value'),
+        Input('area-level-2', 'value'),
+        Input('area-level-3', 'value'),
+        Input('tabs', 'value')
+    ],
+    state=[State('test-location', 'pathname')])
+def update_url_data(election, dateSlider, areaLevel1, areaLevel2, areaLevel3, tabs, current_pathname):
+    json_data = json.dumps({
+        'elections': election,
+        'date-slider': dateSlider,
+        'area-level-1': areaLevel1,
+        'area-level-2': areaLevel2,
+        'area-level-3': areaLevel3,
+        'tabs': tabs
+    })
+    return '/data='+urllib.parse.quote(json_data, safe='')
+
+
+@app.callback(
+    Output('page-hack-2', 'children'),
+    [Input('page-hack', 'children')])
+def update_url_data_hack(val):
+    return val
+########################################################################################################################
+# </ Синхронизация выбранных значений с URL >
+########################################################################################################################
+
+
+########################################################################################################################
+# < Скрытие и показ полей выбора территории >
+########################################################################################################################
 @app.callback(
     Output('area-level-3', 'disabled'),
     [Input('area-level-2', 'value'),
@@ -364,10 +530,14 @@ def area_level_3_disabled(val, opt, election_id):
      Input('area-level-1', 'options')])
 def area_level_2_disabled(val, opt):
     return val is None or len(val) == 0 or not any(d['value'] == val[0] for d in opt)
+########################################################################################################################
+# </ Скрытие и показ полей выбора территории >
+########################################################################################################################
 
 
-
-
+########################################################################################################################
+# < Вывод статистики по выбранной территории в левом блоке >
+########################################################################################################################
 @app.callback(
     Output('left-info', 'children'),
     [Input('area-level-1', 'value'),
@@ -421,7 +591,7 @@ def left_info_all(level1, level2, level3, election_id):
                            title=cand['name'],
                            className="left-info-name"),
                     html.Div([
-                        html.Span(str(percent)+'%'),
+                        html.Span(html.B(str(percent)+'%')),
                         html.Span('('+str(results[str(i)])+')')
                     ], className="left-info-num", id='left-info-candidates'),
                 ], style={'order': int(results[str(i)])}),
@@ -449,7 +619,9 @@ def left_info_all(level1, level2, level3, election_id):
             ], className="left-info-head"),
             html.Div(html_candidates, className="left-info-block left-info-block-candidates"),
         ]
-
+########################################################################################################################
+# </ Вывод статистики по выбранной территории в левом блоке >
+########################################################################################################################
 
 
 @app.callback(
@@ -478,19 +650,18 @@ def area_level_2_options(parent, election):
 @app.callback(
     Output('graph', 'figure'),
     [Input('area-level-1', 'value'),
-     Input('area-level-1', 'options'),
      Input('area-level-2', 'value'),
-     Input('area-level-2', 'options'),
      Input('area-level-3', 'value'),
-     Input('area-level-3', 'options'),
      Input('elections', 'value'),
-     Input('tabs', 'value')])
-def update_graph(level1_val, level1_opt,
-                 level2_val, level2_opt,
-                 level3_val, level3_opt,
-                 election_id, tab):
+     Input('tabs', 'value')],
+    [State('area-level-1', 'options'),
+     State('area-level-2', 'options'),
+     State('area-level-3', 'options')]
+)
+def update_graph(level1_val, level2_val, level3_val, election_id, tab,
+                 level1_opt, level2_opt, level3_opt):
     if election_id is None:
-        return html.Div([])
+        return html.Div()
 
     if level3_val is not None and len(level3_val) > 0 and any(d['value'] == level3_val[0] for d in level3_opt):
         area = level3_val
@@ -690,8 +861,9 @@ def update_graph(level1_val, level1_opt,
     }
 
 
-
-
+########################################################################################################################
+# < Отображение подробной информации о выбранных на графике участках >
+########################################################################################################################
 @app.callback(
     Output('selected-data', 'children'),
     [Input('graph', 'selectedData')])
@@ -707,16 +879,19 @@ def display_selected_data(selectedData):
 
             data.append(
                 html.Div([
-                    html.P(el['customdata']['name']+' | '+
-                           'Всего избирателей: '+str(el['customdata']['total'])+' | '+
-                           'Голосов в помещении: '+str(el['customdata']['votes_inroom'])+' | '+
-                           'Голосов вне помещения: '+str(el['customdata']['votes_outroom'])+' | '+
+                    html.P(el['customdata']['name']+' | ' +
+                           'Всего избирателей: '+str(el['customdata']['total'])+' | ' +
+                           'Голосов в помещении: '+str(el['customdata']['votes_inroom'])+' | ' +
+                           'Голосов вне помещения: '+str(el['customdata']['votes_outroom'])+' | ' +
                            'Явка: '+str(el['customdata']['share'])+'%'),
                     html.P(el['customdata']['address']),
                 ], className="selected-data-block")
             )
 
     return html.Div(data)
+########################################################################################################################
+# </ Отображение подробной информации о выбранных на графике участках >
+########################################################################################################################
 
 if __name__ == '__main__':
     app.run_server(debug=True)

@@ -20,14 +20,6 @@ database.add_election(
 async def parse_election_page(election_id, parent_pid, parent_num, parent_name, url,
                         level=0, debug=False, progressbar=False, _progressbar_lvl=0, _meta_exist=False, _pbar_inner=None):
 
-    # html = await helpers.async_download_url('http://www.krasnoyarsk.vybory.izbirkom.ru/region/region/krasnoyarsk?action=show&root=242000042&tvd=2242000195400&vrn=100100022176412&region=24&global=true&sub_region=24&prver=0&pronetvd=null&vibid=2242000195400&type=227')
-    # uiks = parse.two_dimensional_table(html)
-    # print(uiks)
-    # return
-
-    if level == 1 and parent_name != 'Белгородская область':
-        return {'0': 0}
-
     pbar = None
     sum_results = {}
 
@@ -91,7 +83,7 @@ async def parse_election_page(election_id, parent_pid, parent_num, parent_name, 
                     if len(item) > 0:
                         sum_results = helpers.sum_results(sum_results, item)
                     else:
-                        print('блэд')
+                        print('\nнеполные данные\n')
 
     # Если на странице отсутствует селектор
     else:
@@ -130,9 +122,12 @@ def parse_address(filename):
     conn = sqlite3.connect(filename)
     cursor = conn.cursor()
 
-    for reg in ['pskov', 'rostov', 'ryazan', 'samara', 'saratov', 'sakhalin', 'sverdlovsk', 'smolensk', 'tambov', 'tver', 'tomsk', 'tula', 'tyumen', 'ulyanovsk', 'chelyabinsk', 'yaroslavl', 'moscow_city', 'st-petersburg', 'jewish_aut', 'nenetsk', 'khantu-mansy', 'chukot', 'yamal-nenetsk', 'crimea', 'sevastopol']:
+    cursor.execute("SELECT DISTINCT region FROM cik_uik")
+    regions_raw = cursor.fetchall()
 
-        nodes = list(db.area.find({'region': reg, 'max_depth': True}, {'num': True}))
+    for reg in [region[0] for region in regions_raw]:
+
+        nodes = list(db.area.find({'region': reg, 'max_depth': True, 'address': {'$exists': True}}, {'num': True}))
         pbar = tqdm(total=len(nodes))
         for area in nodes:
 
@@ -149,10 +144,12 @@ def parse_address(filename):
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
+        # Первый этап - загрузка данных с сайта избиркома
         parse_election_page(
             helpers.hash_item(START_URL), None, None, 'Российская Федерация', START_URL,
             debug=False, progressbar=True
         )
     )
-
+    # Второй этап - соотнесение УИКов с из адресами в реальном мире
+    # Готовый файл cik.sqlite можно взять по адресу: http://gis-lab.info/qa/cik-data.html
     # parse_address('cik.sqlite')

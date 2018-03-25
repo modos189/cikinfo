@@ -127,7 +127,7 @@ def parse_address(filename):
 
     for reg in [region[0] for region in regions_raw]:
 
-        nodes = list(db.area.find({'region': reg, 'max_depth': True, 'address': {'$exists': True}}, {'num': True}))
+        nodes = list(db.area.find({'region': reg, 'max_depth': True, 'address': {'$exists': False}}, {'num': True}))
         pbar = tqdm(total=len(nodes))
         for area in nodes:
 
@@ -136,8 +136,6 @@ def parse_address(filename):
             data = cursor.fetchone()
             if data is not None:
                 db.area.update_one({'_id': area['_id']}, {'$set': {'address': data[1]}})
-            else:
-                print(area)
 
             pbar.update(1)
 

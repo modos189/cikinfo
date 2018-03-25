@@ -4,7 +4,7 @@ from tqdm import tqdm
 from modules import helpers, parse, database
 
 client = MongoClient()
-db = client.cikinfo_beta2
+db = client.cikinfo5
 
 START_URL = 'http://www.vybory.izbirkom.ru/region/izbirkom?action=show&global=1&vrn=100100084849062&region=0&prver=0&pronetvd=null'
 

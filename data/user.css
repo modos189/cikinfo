@@ -1,3 +1,7 @@
+html {
+    overflow-y: scroll; /* hack: чтобы при появлении скроллбара не менялась ширина окна графиков */
+}
+
 body {
     margin: 0;
     height: 100vh;
@@ -494,4 +498,8 @@ body {
     color: rgb(68, 68, 68);
     font-weight: 300;
     font-size: 13px;
+}
+
+.legendpoints .scatterpts {
+    opacity: 0.5 !important;
 }

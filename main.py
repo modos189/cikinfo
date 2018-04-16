@@ -2,18 +2,14 @@ import asyncio
 from pymongo import MongoClient
 from tqdm import tqdm
 from modules import helpers, parse, database
+from pathlib import Path
 
 client = MongoClient()
 db = client.cikinfo5
 
+ELECTION_NAME = "Выборы Президента Российской Федерации"
+ELECTION_DATE = "18 марта 2018 года"
 START_URL = 'http://www.vybory.izbirkom.ru/region/izbirkom?action=show&global=1&vrn=100100084849062&region=0&prver=0&pronetvd=null'
-
-database.add_election(
-    db,
-    "Выборы Президента Российской Федерации",
-    START_URL,
-    helpers.get_datetime("18 марта 2018 года")
-)
 
 
 # Производит рекурсивную загрузку страниц выборов, начиная областями и республиками, заканчивая сайтами ИК субъектов
@@ -117,37 +113,48 @@ async def parse_election_page(election_id, parent_pid, parent_num, parent_name, 
 
 
 def parse_address(filename):
-    import sqlite3
+    address_file = Path(filename)
 
-    conn = sqlite3.connect(filename)
-    cursor = conn.cursor()
+    if address_file.is_file():
+        import sqlite3
 
-    cursor.execute("SELECT DISTINCT region FROM cik_uik")
-    regions_raw = cursor.fetchall()
+        conn = sqlite3.connect(filename)
+        cursor = conn.cursor()
 
-    for reg in [region[0] for region in regions_raw]:
+        cursor.execute("SELECT DISTINCT region FROM cik_uik")
+        regions_raw = cursor.fetchall()
 
-        nodes = list(db.area.find({'region': reg, 'max_depth': True, 'address': {'$exists': False}}, {'num': True}))
-        pbar = tqdm(total=len(nodes))
-        for area in nodes:
+        for reg in [region[0] for region in regions_raw]:
 
-            sql = "SELECT name, address FROM cik_uik WHERE region='"+reg+"' and `name` LIKE (?)"
-            cursor.execute(sql, ['%№'+str(area['num'])])
-            data = cursor.fetchone()
-            if data is not None:
-                db.area.update_one({'_id': area['_id']}, {'$set': {'address': data[1]}})
+            nodes = list(db.area.find({'region': reg, 'max_depth': True, 'address': {'$exists': False}}, {'num': True}))
+            pbar = tqdm(total=len(nodes))
+            for area in nodes:
 
-            pbar.update(1)
+                sql = "SELECT name, address FROM cik_uik WHERE region='"+reg+"' and `name` LIKE (?)"
+                cursor.execute(sql, ['%№'+str(area['num'])])
+                data = cursor.fetchone()
+                if data is not None:
+                    db.area.update_one({'_id': area['_id']}, {'$set': {'address': data[1]}})
+
+                pbar.update(1)
 
 if __name__ == '__main__':
+    # Первый этап - создание записи о выборах с названием и датой их проведения
+    database.add_election(
+        db,
+        ELECTION_NAME,
+        START_URL,
+        helpers.get_datetime(ELECTION_DATE)
+    )
+
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
-        # Первый этап - загрузка данных с сайта избиркома
+        # Второй этап - загрузка данных с сайта избиркома
         parse_election_page(
             helpers.hash_item(START_URL), None, None, 'Российская Федерация', START_URL,
             debug=False, progressbar=True
         )
     )
-    # Второй этап - соотнесение УИКов с из адресами в реальном мире
+    # Третий этап - соотнесение УИКов с из адресами в реальном мире
     # Готовый файл cik.sqlite можно взять по адресу: http://gis-lab.info/qa/cik-data.html
-    # parse_address('cik.sqlite')
+    parse_address('cik.sqlite')

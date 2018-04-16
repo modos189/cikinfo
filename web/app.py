@@ -12,7 +12,6 @@ import textwrap
 import database
 
 SITE = 'https://cikinfo.modos189.ru'
-# SITE = 'http://modos189.lh/cikinfo'
 
 
 class Dash_responsive(dash.Dash):
@@ -63,6 +62,9 @@ app.scripts.append_script({
 client = MongoClient()
 db = client.cikinfo5
 country_id = db.area.find_one({'name': 'Российская Федерация'}, {'_id': True})['_id']
+
+# Не передавать клиенту полную информацию о участках, если их больше этого лимита, чтобы снизить трафик
+limit_points_with_description = 500
 
 colors = ['#f44336', '#9C27B0', '#3F51B5', '#03A9F4',
           '#009688', '#8BC34A', '#FF9800', '#E64A19',
@@ -181,7 +183,7 @@ app.layout = html.Div([
                         """Ljc1NmMwLTAuNDM4LTAuMDA5LTAuODc1LTAuMDI4LTEuMzA5QzQ5Ljc2OSwxOC44NzMsNTEuNDgzLDE3LjA5Miw1Mi44MzcsM""" +
                         """TUuMDY1eiIvPjwvc3ZnPg==""")
             ],
-                href="http://twitter.com/share?text=Найди фальсификации на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url=" + SITE,
+                href="http://twitter.com/share?text=Найди аномалии на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url=" + SITE,
                 target="_blank", id="left-button-twitter"),
             html.A([
                 html.Img(
@@ -458,7 +460,7 @@ def get_data_from_url(_, pathname, old_content):
     Output('left-button-twitter', 'href'),
     [Input('test-location', 'pathname')])
 def update_url_twitter(pathname):
-    return "http://twitter.com/share?text=Найди фальсификации на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url=" + SITE + pathname
+    return "http://twitter.com/share?text=Найди аномалии на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url=" + SITE + pathname
 
 
 @app.callback(
@@ -512,13 +514,14 @@ def update_url_data_hack(val):
     [Input('area-level-2', 'value'),
      Input('area-level-2', 'options'),
      Input('elections', 'value')])
-def area_level_3_disabled(val, opt, election_id):
-    if val is None or len(val) == 0 or {'label': '-= выбрать всё =-', 'value': 'all'} in opt or not any(d['value'] == val[0] for d in opt):
+def area_level_3_disabled(val_raw, opt, election_id):
+    if val_raw is None or len(val_raw) == 0 or not any(d['value'] == val_raw[0] for d in opt):
         return True
 
-    for i, a in enumerate(val):
-        if type(a) is str:
-            val[i] = ObjectId(a)
+    val = []
+    for i, a in enumerate(val_raw):
+        if a != 'all' and type(a) is str:
+            val.append(ObjectId(a))
 
     return db.area.find({
         'results_tags': election_id,
@@ -579,7 +582,7 @@ def left_info_all(level1_val, level2_val, level3_val, election_id,
     html_candidates = []
     for i, cand in enumerate(db.election.find_one({'_id': election_id})['meta']):
         if cand['is_meta'] is False:
-            percent = round(results[str(i)] / results['1'] * 100, 2)
+            percent = round(results[str(i)] / (results['8'] + results['9']) * 100, 2)
             html_candidates.append(
                 html.Div([
                     html.P(cand['name_simple'],
@@ -681,10 +684,10 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
     if l < 500:
         point_size = 8
         point_opacity = 0.5
-    elif l < 5000:
+    elif l <= 5000:
         point_size = 6
         point_opacity = 0.4
-    elif l > 50000:
+    elif l > 5000:
         point_size = 4
         point_opacity = 0.3
 
@@ -703,13 +706,15 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
             if m is None:
                 continue
             if not m['is_meta']:
+                share_votes = [(int(item['results'][election_id][str(i)]) /
+                                item['results'][election_id]['number_bulletin'] * 100)
+                               if item['results'][election_id]['number_bulletin'] > 0 else 0
+                               for item in col]
+
                 markers.append(
                     go.Scattergl(
                         x=[item['results'][election_id]['share'] for item in col],
-                        y=[(int(item['results'][election_id][str(i)]) /
-                           item['results'][election_id]['number_bulletin'] * 100)
-                           if item['results'][election_id]['number_bulletin'] > 0 else 0
-                           for item in col],
+                        y=share_votes,
                         text=[
                             item['name'] + '</br>'
                             + 'Всего избирателей: ' + str(item['results'][election_id]['0']) + '</br>'
@@ -722,7 +727,9 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
                                         'votes_inroom': item['results'][election_id]['3'],
                                         'votes_outroom': item['results'][election_id]['4'],
                                         'share': item['results'][election_id]['share']
-                                    } for item in col],
+                                    } if l < limit_points_with_description else {
+                            '_id': str(item['_id']),
+                        } for item in col],
                         name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
                         mode='markers',
                         marker={
@@ -737,25 +744,31 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
                 k += 1
 
     elif tab == 1:
-        yaxis_title = "Кол-во избирательных участков (в 1% интервале явки)"
         autorange = True
+        import math
 
-        data = [0 for _ in range(101)]
+        if l < 1000000:
+            yaxis_title = "Кол-во избирательных участков (в 1% интервале явки)"
+            rou = 1
+        else:
+            yaxis_title = "Кол-во избирательных участков (в 0.1% интервале явки)"
+            rou = 10
+
+        data = [0 for _ in range(100 * rou + 1)]
         for uik in col:
-            share = uik['results'][election_id]['share']
-            share = round(share)
-            data[share] += 1
+            if uik['results'][election_id]['0'] > 500:
+                share = uik['results'][election_id]['share']
+                share = math.floor(share * rou)
+                data[share] += 1
 
         markers.append(
             go.Scattergl(
-                x=[i for i, item in enumerate(data)],
+                x=[i / rou for i, item in enumerate(data)],
                 y=[item for item in data],
                 mode='lines',
                 marker={
-                    'color': colors[0],
-                    'size': point_size,
-                    'opacity': point_opacity,
-                    'line': {'width': 0.5, 'color': 'white'}
+                    'color': colors[4],
+                    'opacity': point_opacity
                 }
             )
         )
@@ -764,10 +777,12 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
         yaxis_title = "Кол-во избирателей"
         autorange = True
 
+        number_of_voters = [item['results'][election_id]['0'] for item in col]
+
         markers.append(
             go.Scattergl(
                 x=[item['results'][election_id]['share'] for item in col],
-                y=[item['results'][election_id]['0'] for item in col],
+                y=number_of_voters,
                 text=[
                     item['name'] + '</br>'
                     + 'Всего избирателей: ' + str(item['results'][election_id]['0']) + '</br>'
@@ -780,9 +795,13 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
                                 'votes_inroom': item['results'][election_id]['3'],
                                 'votes_outroom': item['results'][election_id]['4'],
                                 'share': item['results'][election_id]['share']
-                            } for item in col],
+                            } if l < limit_points_with_description else {
+                    '_id': str(item['_id']),
+                }
+                            for item in col],
                 # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
                 mode='markers',
+                showlegend=False,
                 marker={
                     'color': colors[0],
                     'size': point_size,
@@ -820,12 +839,12 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
                                     'votes_inroom': item['results'][election_id]['3'],
                                     'votes_outroom': item['results'][election_id]['4'],
                                     'share': item['results'][election_id]['share']
-                                } for item in OrderCol],
-                    # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
-                    # type='bar',
-                    # mode='markers',
+                                } if l < limit_points_with_description else {
+                        '_id': str(item['_id']),
+                    }
+                                for item in OrderCol],
                     marker={
-                        'color': colors[0],
+                        'color': colors[8],
                         'opacity': 0.5,
                         'line': {'width': 0.5, 'color': 'white'}
                     }
@@ -864,8 +883,10 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
 ########################################################################################################################
 @app.callback(
     Output('selected-data', 'children'),
-    [Input('graph', 'selectedData')])
-def display_selected_data(selectedData):
+    [Input('graph', 'selectedData')],
+    [State('elections', 'value')]
+)
+def display_selected_data(selectedData, election_id):
     if selectedData is None or len(selectedData['points']) == 0:
         return ''
 

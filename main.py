@@ -16,7 +16,7 @@ Options:
   -h --help
   -q       quiet mode
 """
-
+from datetime import datetime
 from docopt import docopt
 import asyncio
 import aiohttp
@@ -173,30 +173,41 @@ async def main():
             if arguments['<function>'] == 'update':
                 params = {}
 
-                # обработка фильтров
-                if arguments['--date'] is not None:
-                    date = parse.get_start_end_date(arguments['--date'])
-                    if date is None:
-                        print("Неверно указан ключ --data")
-                        return
-                    params.update(date)
+                # Обработка ключа --date
+                # Если не указано, то получаем выборы за текущий год
+                if arguments['--date'] is None:
+                    year = str(datetime.today().year)
+                    date_range = {'start_date': '01.01.'+year, 'end_date': '31.12.'+year}
+                else:
+                    date_range = parse.get_start_end_date(arguments['--date'])
+                if date_range is None:
+                    print("Неверно указан ключ --data")
+                    return
+                params.update(date_range)
 
+                # Обработка ключа --urovproved
+                # По-умолчанию значение all
                 if arguments['--urovproved'] is not None:
                     params['urovproved'] = arguments['--urovproved']
 
+                # Обработка ключа --region
+                # Скрипт получает все регионы, а затем фильтрует, удаляя все, кроме указанного региона.
+                # Если не указано, то не фильтрует
                 if arguments['--region'] is not None:
                     params['region_name'] = arguments['--region']
 
-                # загрузка списка выборов
+                # Загрузка списка выборов
                 elections = await spider.get_elections(_session, IZBIRKOM_URL, params)
                 print("Будет загружено", len(elections), "событий.")
 
+                # Отключение интерактивного режима, если указан ключ --y
                 if not arguments['-y']:
                     val = input("Хотите продолжить? [Д/н] ")
                     print(val)
 
                 print("loading")
 
+                # Перебор всех выборов
                 for el in elections:
                     election_id = database.add_election(db, el['name'], el['url'], el['date'])
 

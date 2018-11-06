@@ -221,6 +221,7 @@ class Test(unittest.TestCase):
         self.assertEqual(parse.get_start_end_date("2018-10"), {'start_date': '01.10.2018', 'end_date': '31.10.2018'})
         self.assertEqual(parse.get_start_end_date("2018-10-10"), {'start_date': '10.10.2018', 'end_date': '10.10.2018'})
         self.assertEqual(parse.get_start_end_date("2018-77"), None)
+        self.assertEqual(parse.get_start_end_date("2005"), None)
 
 
 if __name__ == '__main__':

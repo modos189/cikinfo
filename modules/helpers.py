@@ -1,9 +1,6 @@
-import aiohttp
 import asyncio
 import async_timeout
 
-import requests
-from time import sleep
 from datetime import datetime
 from hashlib import sha1
 
@@ -16,10 +13,10 @@ def hash_item(item):
     return sha1(item.encode('utf8')).hexdigest()
 
 
-async def fetch(session, url, retry=0):
+async def fetch(session, url, params, retry=0):
     try:
         async with async_timeout.timeout(5):
-            async with session.get(url, headers=HEADERS) as response:
+            async with session.post(url, data=params, headers=HEADERS) as response:
                 return await response.text(encoding='windows-1251')
 
     except asyncio.TimeoutError:
@@ -27,12 +24,12 @@ async def fetch(session, url, retry=0):
         if retry > 30:
             raise TimeoutError()
         await asyncio.sleep(retry)
-        return await fetch(session, url, retry=retry)
+        return await fetch(session, url, params, retry=retry)
 
-async def async_download_url(url):
-        async with aiohttp.ClientSession() as session:
-            html = await fetch(session, url)
-            return html
+
+async def async_download_url(session, url, params={}):
+    html = await fetch(session, url, params)
+    return html
 
 
 # Преобразует локализованную запись в datetime
@@ -43,7 +40,7 @@ def get_datetime(s):
         "мая", "июня", "июля", "августа",
         "сентября", "октября", "ноября", "декабря"
     ]
-    month = local_months.index(s[1])
+    month = local_months.index(s[1])+1
     return datetime(int(s[2]), month, int(s[0]))
 
 

@@ -17,10 +17,14 @@ def uik_id(db, param):
 def add_election(db, name, url, date):
     _hash = helpers.hash_item(url)
     if db.election.count({'_id': _hash}):
-        return False
+        return _hash
     else:
-        doc = {'_id': _hash, 'name': name, 'url': url, 'date': date}
+        doc = {'_id': _hash, 'name': name, 'url': url, 'date': date, 'is_loaded': False}
         return db.election.insert_one(doc).inserted_id
+
+
+def election_is_loaded(db, _id):
+    return db.election.find({'_id': _id})['is_loaded']
 
 
 # Сохраняет результаты выборов в БД

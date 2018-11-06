@@ -1,5 +1,8 @@
+# coding=utf-8
 from bs4 import BeautifulSoup
 from collections import namedtuple
+import calendar
+from . import helpers
 
 RawSelectRecord = namedtuple(
     'RawSelectRecord',
@@ -225,6 +228,134 @@ def two_dimensional_table(html):
 
 
 # Возвращает название региона, который указан в поддомене
-def get_region_from_url(url):
+def get_region_from_subdomain_url(url):
     url = url.split('.')
     return url[1]
+
+
+# Возвращает название региона, который указан в GET параметрах адреса
+def get_region_from_getparams_url(url):
+    num = dict(x.split('=', 1) for x in url.split('&')).get('region')
+    if num is not None:
+        num = int(num)
+    return num
+
+
+# Вид выборов/референдумов и иных форм прямого волеизъявления:
+#   all - все
+#     0 - Референдум                    3 - Отзыв депутата
+#     1 - Выборы на должность           4 - Отзыв должностного лица
+#     2 - Выборы депутата
+def vidvibref_from_title(title):
+    title = title.lower()
+    if title.find("отзыв") != -1:
+        if title.find("депутат") != -1:
+            return 3
+        else:
+            return 4
+    elif title.find("выбор") != -1:
+        if title.find("депутат") != -1:
+            return 2
+        else:
+            return 1
+    else:
+        return 0
+
+
+def parse_list_elections(html, urovproved):
+    soup = __get_soup__(html)
+
+    data = soup.find_all('table')
+    if len(data) >= 7:
+        data = data[7].find_all('tr')
+    else:
+        return []
+
+    elections = []
+    election_date = ""
+    election_region = ""
+    election_subregion = ""
+    for row in data:
+        item = row.find_all('td')
+
+        if len(item) == 1:
+            # В строке указана дата
+            election_date = item[0].text.strip()
+        elif len(item) == 2:
+            _region = item[0].find('b')
+            if _region is not None:
+                election_region = _region.text
+                if len(item[0].contents) == 3:
+                    _subregion = item[0].contents[2].strip()
+                else:
+                    _subregion = None
+                election_subregion = _subregion
+            else:
+                _subregion = item[0].text.strip()
+                if _subregion != '':
+                    election_subregion = _subregion
+
+            if election_region == "Российская Федерация":
+                region = ["Российская Федерация", None, None]
+            else:
+                region = ["Российская Федерация", election_region, election_subregion]
+
+            title = item[1].text.strip()
+            elections.append({
+                'date': helpers.get_datetime(election_date),
+                'region_id': get_region_from_getparams_url(item[1].find('a')['href']),
+                'region': region,
+                'title': title,
+                'vidvibref': vidvibref_from_title(title),
+                'urovproved': urovproved,
+                'url': item[1].find('a')['href'],
+            })
+
+    return elections
+
+
+# 2018 -> [01.01.2018,31.12.2018]
+# 2018-10 -> [01.10.2018,31.10.2018]
+# 2018-10-10 -> [10.10.2018,10.10.2018]
+def get_start_end_date(s, _min_year=2008, _max_year=2142, _min_month=1, _max_month=12):
+    s = s.split("-")
+    if len(s) > 3:
+        return None
+
+    # Указан год
+    year = int(s[0])
+    if not(_min_year <= year <= _max_year):
+        return None
+
+    # Указан ещё и месяц
+    if len(s) == 1:
+        start_month = 1
+        end_month = 12
+    else:
+        start_month = int(s[1])
+        if not(_min_month <= start_month <= _max_month):
+            return None
+        end_month = start_month
+
+    # Указан год, месяц и день
+    if len(s) < 3:
+        start_day = 1
+        end_day = calendar.monthrange(year, end_month)[1]
+    else:
+        start_day = int(s[2])
+        if not(1 <= start_day <= calendar.monthrange(year, end_month)[1]):
+            return None
+        end_day = start_day
+
+    return {
+        'start_date': '.'.join([
+            str(start_day).zfill(2),
+            str(start_month).zfill(2),
+            str(year)
+        ]),
+        'end_date': '.'.join([
+            str(end_day).zfill(2),
+            str(end_month).zfill(2),
+            str(year)
+        ]),
+    }

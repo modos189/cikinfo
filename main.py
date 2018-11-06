@@ -1,20 +1,45 @@
+"""CikInfo
+
+Usage:
+  main.py
+  main.py <function> [--date=<date>] [--urovproved=<urovproved>] [--region=<region>] [-y]
+
+Examples:
+  main.py update                      Get all elections
+  main.py update --date=2018          Get elections in 2018
+  main.py update --date=2018-09 -y    Get elections in 2018 09, not interact
+  main.py update --date=2018-09-09    Get elections in year-month-day (ISO 8601)
+
+urovproved - default: all, 1-4
+
+Options:
+  -h --help
+  -q       quiet mode
+"""
+
+from docopt import docopt
 import asyncio
+import aiohttp
+from git import Repo
+import time
 from pymongo import MongoClient
 from tqdm import tqdm
 from modules import helpers, parse, database
 from pathlib import Path
+import spider
 
 client = MongoClient()
 db = client.cikinfo5
 
+IZBIRKOM_URL = 'http://www.vybory.izbirkom.ru/region/izbirkom'
 ELECTION_NAME = "Выборы Президента Российской Федерации"
 ELECTION_DATE = "18 марта 2018 года"
 START_URL = 'http://www.vybory.izbirkom.ru/region/izbirkom?action=show&global=1&vrn=100100084849062&region=0&prver=0&pronetvd=null'
 
 
 # Производит рекурсивную загрузку страниц выборов, начиная областями и республиками, заканчивая сайтами ИК субъектов
-async def parse_election_page(election_id, parent_pid, parent_num, parent_name, url,
-                        level=0, debug=False, progressbar=False, _progressbar_lvl=0, _meta_exist=False, _pbar_inner=None):
+async def parse_election_page(session, election_id, parent_pid, parent_num, parent_name, url,
+                              level=0, debug=False, progressbar=False, _progressbar_lvl=0, _meta_exist=False, _pbar_inner=None):
 
     pbar = None
     sum_results = {}
@@ -29,12 +54,12 @@ async def parse_election_page(election_id, parent_pid, parent_num, parent_name, 
     else:
         parent_id = db.area.insert_one(param).inserted_id
 
-    html = await helpers.async_download_url(url)
+    html = await helpers.async_download_url(session, url)
     nodes = parse.selects(html)
     itog_url = parse.url_itog(html)
     # Если на странице существует ссылка на результаты выборов
     if itog_url:
-        itog_html = await helpers.async_download_url(itog_url)
+        itog_html = await helpers.async_download_url(session, itog_url)
 
         # Если не указана мета-информация в документе выборов о полях, по которым возможна выборка, то добавление
         if not _meta_exist and not database.election_meta_exist(db, election_id):
@@ -51,7 +76,7 @@ async def parse_election_page(election_id, parent_pid, parent_num, parent_name, 
         if level < 1:
             for node in nodes:
                 res = await parse_election_page(
-                    election_id, parent_id, node.num, node.name, node.url,
+                    session, election_id, parent_id, node.num, node.name, node.url,
                     level=level + 1, debug=debug, progressbar=progressbar,
                     _progressbar_lvl=_progressbar_lvl, _meta_exist=_meta_exist,
                     _pbar_inner=pbar
@@ -66,7 +91,7 @@ async def parse_election_page(election_id, parent_pid, parent_num, parent_name, 
                 tasks = [
                     asyncio.ensure_future(
                         parse_election_page(
-                            election_id, parent_id, node.num, node.name, node.url,
+                            session, election_id, parent_id, node.num, node.name, node.url,
                             level=level + 1, debug=debug, progressbar=progressbar,
                             _progressbar_lvl=_progressbar_lvl, _meta_exist=_meta_exist,
                             _pbar_inner=pbar
@@ -86,12 +111,12 @@ async def parse_election_page(election_id, parent_pid, parent_num, parent_name, 
         local_ik_url = parse.local_ik_url(html)
         # При этом есть ссылка на сайт избирательной комиссии субъекта РФ
         if local_ik_url is not None:
-            html = await helpers.async_download_url(local_ik_url)
+            html = await helpers.async_download_url(session, local_ik_url)
 
             itog_url = parse.url_local_itog(html)
             if itog_url:
-                region = parse.get_region_from_url(itog_url)
-                itog_html = await helpers.async_download_url(itog_url)
+                region = parse.get_region_from_subdomain_url(itog_url)
+                itog_html = await helpers.async_download_url(session, itog_url)
                 uiks = parse.two_dimensional_table(itog_html)
 
                 for uik in uiks:
@@ -138,23 +163,87 @@ def parse_address(filename):
 
                 pbar.update(1)
 
+
+async def main():
+    async with aiohttp.ClientSession() as _session:
+        arguments = docopt(__doc__)
+
+        if arguments['<function>'] is not None and arguments['<function>'] in ['update']:
+            # Пока только одна функция, обновление базы выборов
+            if arguments['<function>'] == 'update':
+                params = {}
+
+                # обработка фильтров
+                if arguments['--date'] is not None:
+                    date = parse.get_start_end_date(arguments['--date'])
+                    if date is None:
+                        print("Неверно указан ключ --data")
+                        return
+                    params.update(date)
+
+                if arguments['--urovproved'] is not None:
+                    params['urovproved'] = arguments['--urovproved']
+
+                if arguments['--region'] is not None:
+                    params['region_name'] = arguments['--region']
+
+                # загрузка списка выборов
+                elections = await spider.get_elections(_session, IZBIRKOM_URL, params)
+                print("Будет загружено", len(elections), "событий.")
+
+                if not arguments['-y']:
+                    val = input("Хотите продолжить? [Д/н] ")
+                    print(val)
+
+                print("loading")
+
+                for el in elections:
+                    election_id = database.add_election(db, el['name'], el['url'], el['date'])
+
+                    if database.election_is_loaded(db, election_id):
+                        continue
+
+                    await spider.download_election(
+                        db, _session, election_id, None, None, 'Российская Федерация', el['url'],
+                        debug=False, progressbar=True
+                    )
+
+        else:
+            print(__doc__)
+
+        # elections = await spider.get_elections(session, IZBIRKOM_URL)
+        # print(elections)
+        # parse_election_page(
+        #     session, helpers.hash_item(START_URL), None, None, 'Российская Федерация', START_URL,
+        #     debug=False, progressbar=True
+        # )
+
+
 if __name__ == '__main__':
-    # Первый этап - создание записи о выборах с названием и датой их проведения
-    database.add_election(
-        db,
-        ELECTION_NAME,
-        START_URL,
-        helpers.get_datetime(ELECTION_DATE)
-    )
+    repo = Repo(search_parent_directories=True)
+    head_commit = repo.head.commit
+    print("CikInfoServer --- commit hash", head_commit.hexsha,
+          "(", time.strftime("%d %b %Y %H:%M", time.gmtime(head_commit.committed_date)), ")")
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(
-        # Второй этап - загрузка данных с сайта избиркома
-        parse_election_page(
-            helpers.hash_item(START_URL), None, None, 'Российская Федерация', START_URL,
-            debug=False, progressbar=True
-        )
+        main()
     )
+
+    # Первый этап - создание записи о выборах с названием и датой их проведения
+    # database.add_election(
+    #     db,
+    #     ELECTION_NAME,
+    #     START_URL,
+    #     helpers.get_datetime(ELECTION_DATE)
+    # )
+
+    # loop = asyncio.get_event_loop()
+    # loop.run_until_complete(
+    #     # Второй этап - загрузка данных с сайта избиркома
+    #     #download_data()
+    #
+    # )
     # Третий этап - соотнесение УИКов с из адресами в реальном мире
     # Готовый файл cik.sqlite можно взять по адресу: http://gis-lab.info/qa/cik-data.html
-    parse_address('cik.sqlite')
+    # parse_address('cik.sqlite')

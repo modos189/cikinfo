@@ -209,15 +209,22 @@ async def main():
 
                 # Перебор всех выборов
                 for el in elections:
-                    election_id = database.add_election(db, el['name'], el['url'], el['date'])
+                    html = await helpers.async_download_url(_session, el['url'])
+                    q = parse.get_elections_type(html)
+                    if q[0] == 0 or q[0] != q[1]:
+                        print(el['title'], el['url'], el['date'])
+                        print(q)
+                        return
 
-                    if database.election_is_loaded(db, election_id):
-                        continue
-
-                    await spider.download_election(
-                        db, _session, election_id, None, None, 'Российская Федерация', el['url'],
-                        debug=False, progressbar=True
-                    )
+                    # election_id = database.add_election(db, el['title'], el['url'], el['date'])
+                    #
+                    # if database.election_is_loaded(db, election_id):
+                    #     continue
+                    #
+                    # await spider.download_election(
+                    #     db, _session, election_id, None, None, 'Российская Федерация', el['url'],
+                    #     debug=False, progressbar=True
+                    # )
 
         else:
             print(__doc__)

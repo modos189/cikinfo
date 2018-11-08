@@ -222,6 +222,10 @@ class Test(unittest.TestCase):
         self.assertEqual(parse.get_start_end_date("2018-77"), None)
         self.assertEqual(parse.get_start_end_date("2005"), None)
 
+    def test_get_elections_type(self):
+        with open('izbirkom_elections_types_variant1_utf8.html', 'r') as f:
+            self.assertEqual(parse.get_elections_type(f.read()), [3, 3, ['mngm', 'edin', 'edmn']])
+
 
 if __name__ == '__main__':
     unittest.main()

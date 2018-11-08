@@ -359,3 +359,61 @@ def get_start_end_date(s, _min_year=2008, _max_year=2142, _min_month=1, _max_mon
             str(year)
         ]),
     }
+
+
+# Возвращает массив со списком систем выборов, по которым они проходят
+# Варианты:
+# - edin - "по единому округу"
+# - edmj - "по единому мажоритарному округу"
+# - edmn - "по единому многомандатному округу"
+# - mngm - "по одномандатному (многомандатному) округу"
+def get_elections_type(html):
+    soup = __get_soup__(html)
+
+    td = soup.find_all('table')[-1].find_all('td')
+    results = []
+    for item in td:
+        if item.get('class') is None or item.get('class')[0] != "tdReport":
+            results = []
+        else:
+            if (len(results) > 0 and
+                    item.find('a').text.startswith('Сводная таблица') and
+                    (results[-1].find('a').text.startswith('Результаты выборов') or
+                     results[-1].find('a').text.startswith('Данные о предварительных'))):
+                continue
+
+            results.append(item)
+
+    types = []
+    for item in results:
+        text = item.find('a').text
+
+        print("'"+text+"'")
+
+        if text in ["Результаты выборов по единому округу",
+                    "Результаты выборов",
+                    "Данные о предварительных итогах голосования",
+                    "Данные о предварительных итогах референдума",
+                    "Результаты референдума"]:
+            if 'edin' in types:
+                return [0, 0, []]
+            types.append('edin')
+
+        elif text in ["Результаты выборов по единому мажоритарному округу"]:
+            if 'edmj' in types:
+                return [0, 0, []]
+            types.append('edmj')
+
+        elif text in ["Результаты выборов по единому многомандатному округу"]:
+            if 'edmn' in types:
+                return [0, 0, []]
+            types.append('edmn')
+
+        elif text in ["Результаты выборов по одномандатному (многомандатному) округу",
+                      "Данные о предварительных итогах голосования по одномандатному (многомандатному) округу"]:
+            if 'mngm' in types:
+                return [0, 0, []]
+            types.append('mngm')
+
+    return [len(results), len(types), types]
+

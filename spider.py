@@ -62,14 +62,13 @@ async def get_elections(session, url, params=None):
     for urovproved in list_urovproved:
         data['urovproved'] = str(urovproved)
         page_html = await helpers.async_download_url(session, url, data)
-        item = parse.parse_list_elections(page_html, data['urovproved'])
+        items = parse.parse_list_elections(page_html, data['urovproved'])
 
         # Пропуск, если указан
-        # Там список. Надо другим образом фильровать
-        if params['region_name'] is not None and item['region'][1] != params['region_name']:
-            continue
+        if 'region_name' in params:
+            items[:] = [el for el in items if el['region'][1] == params['region_name']]
 
-        elections.extend(item)
+        elections.extend(items)
 
     elections = sorted(elections, key=lambda x: x['date'])
 

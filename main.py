@@ -2,7 +2,7 @@
 
 Usage:
   main.py
-  main.py <function> [--date=<date>] [--urovproved=<urovproved>] [--region=<region>] [-y]
+  main.py <function> [--date=<date>] [--urovproved=<urovproved>] [--region=<region>] [-y] [--no-start-info]
 
 Examples:
   main.py update                      Get all elections
@@ -168,6 +168,12 @@ async def main():
     async with aiohttp.ClientSession() as _session:
         arguments = docopt(__doc__)
 
+        if not arguments['--no-start-info']:
+            repo = Repo(search_parent_directories=True)
+            head_commit = repo.head.commit
+            print("CikInfoServer --- commit hash", head_commit.hexsha,
+                  "(", time.strftime("%d %b %Y %H:%M", time.gmtime(head_commit.committed_date)), ")")
+
         if arguments['<function>'] is not None and arguments['<function>'] in ['update']:
             # Пока только одна функция, обновление базы выборов
             if arguments['<function>'] == 'update':
@@ -208,9 +214,17 @@ async def main():
                 print("loading")
 
                 # Перебор всех выборов
-                for el in elections:
+                for i, el in enumerate(elections, start=1):
+                    print(i, '/', len(elections))
                     html = await helpers.async_download_url(_session, el['url'])
                     q = parse.get_elections_type(html)
+
+                    if q[0] == 0 and q[1] == 0:
+                        nodes = parse.selects(html)
+                        if nodes is not None and len(nodes) > 0:
+                            htq = await helpers.async_download_url(_session, nodes[-1].url)
+                            q = parse.get_elections_type(htq)
+
                     if q[0] == 0 or q[0] != q[1]:
                         print(el['title'], el['url'], el['date'])
                         print(q)
@@ -238,10 +252,6 @@ async def main():
 
 
 if __name__ == '__main__':
-    repo = Repo(search_parent_directories=True)
-    head_commit = repo.head.commit
-    print("CikInfoServer --- commit hash", head_commit.hexsha,
-          "(", time.strftime("%d %b %Y %H:%M", time.gmtime(head_commit.committed_date)), ")")
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(

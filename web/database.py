@@ -1,7 +1,7 @@
 from bson.objectid import ObjectId
 
 
-def get_area_by_levels(db, election_id, country_id,
+def get_area_by_levels(db, election_id, level0_val,
                        level1_val, level2_val, level3_val,
                        level1_opt, level2_opt, level3_opt, statistic_mode=False):
 
@@ -16,7 +16,7 @@ def get_area_by_levels(db, election_id, country_id,
         max_zoom_area = level1_val
     else:
         max_zoom_opt = level1_val
-        max_zoom_area = [country_id]
+        max_zoom_area = [level0_val]
 
     parent_ids = []
     # Если в максимальном указанном приближении указан пункт ALL вместо конкретной территории
@@ -28,6 +28,7 @@ def get_area_by_levels(db, election_id, country_id,
         for i, a in enumerate(max_zoom_area):
             if a == 'all':
                 continue
+            print(a)
             if type(a) is str:
                 parent_ids.append(ObjectId(a))
             elif type(a) is ObjectId:

@@ -1,3 +1,4 @@
+wheel
 aiohttp~=3.4.4
 docopt~=0.6.2
 GitPython~=2.1.11
@@ -6,3 +7,5 @@ tqdm~=4.28.1
 beautifulsoup4~=4.6.3
 lxml~=4.2.5
 requests~=2.20.1
+dash==1.2.0
+dash-daq==0.1.0

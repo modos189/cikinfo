@@ -1,6 +1,8 @@
 import dash
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 import dash_core_components as dcc
+import dash_daq as daq
 import dash_html_components as html
 import plotly.graph_objs as go
 import datetime
@@ -10,82 +12,47 @@ import json
 import urllib.parse
 import textwrap
 import database
+import math
 
 SITE = 'https://cikinfo.modos189.ru'
 
-
-class Dash_responsive(dash.Dash):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    # Overriding from https://github.com/plotly/dash/blob/master/dash/dash.py#L282
-    def index(self, *args, **kwargs):
-        scripts = self._generate_scripts_html()
-        css = self._generate_css_dist_html()
-        config = self._generate_config_html()
-        title = getattr(self, 'title', 'Dash')
-        return ('''
-        <!DOCTYPE html>
-        <html>
-            <head>
-                <meta charset="UTF-8"/>
-                <meta property="og:image" content="''' + SITE + '''/data/logo.png">
-                <title>{}</title>
-                {}
-            </head>
-            <body>
-                <div id="react-entry-point">
-                    <div class="_dash-loading">
-                        Loading...
-                    </div>
-                </div>
-            </body>
-            <footer>
-                {}
-                {}
-            </footer>
-        </html>
-        '''.format(title, css, config, scripts))
-
-
-app = Dash_responsive()
+metas = [{'property': 'og:image', 'content': SITE + "/data/logo.png"}]
+app = dash.Dash(__name__, meta_tags=metas)
 app.title = 'ЦИК Инфо | Удобный просмотр статистики избиркома'
-app.css.append_css({
-    "external_url": [SITE + "/data/user.css",
-                     SITE + "/data/pace-theme-flash.css"]
-})
-app.scripts.append_script({
-    "external_url": [SITE + "/data/user.js",
-                     SITE + "/data/pace.min.js"]
-})
 
 client = MongoClient()
-db = client.cikinfo5
-country_id = db.area.find_one({'name': 'Российская Федерация'}, {'_id': True})['_id']
+db = client.cikinfo
+#country_id = db.area.find_one({'name': 'Российская Федерация'}, {'_id': True})['_id']
 
-# Не передавать клиенту полную информацию о участках, если их больше этого лимита, чтобы снизить трафик
-limit_points_with_description = 500
 
 colors = ['#f44336', '#9C27B0', '#3F51B5', '#03A9F4',
           '#009688', '#8BC34A', '#FF9800', '#E64A19',
           '#5D4037', '#9E9E9E', '#607D8B', '#212121',
           '#F50057', '#651FFF', '#2979FF', '#00E5FF',
-          '#00E676', '#AEEA00', '#FFC400', '#FF3D00']
+          '#00E676', '#AEEA00', '#FFC400', '#FF3D00',
+          '#000']
 
+election_type_localization = {
+    'edin': "по единому округу",
+    'edmj': "по единому мажоритарному округу",
+    'edmn': "по единому многомандатному округу",
+    'mngm': "по одномандатному (многомандатному) округу"
+}
 
 # Возвращает массив маркеров, состоящий из дат начала каждого года и дат выборов
 def get_marks():
     marks = {}
     for year in range(2004, datetime.date.today().year + 1):
-        marks[datetime.date(year, 1, 1).toordinal()] = {'label': year}
+        marks[datetime.date(year, 1, 1).toordinal()] = {'label': str(year)}
 
     for election in db.election.find({}, {'date': True}):
         marks[election['date'].toordinal()] = {'label': '|', 'style': {
-            'fontSize': '20px',
+            'fontSize': '24px',
             'lineHeight': '1px',
-            'zIndex': '1'
+            'zIndex': '1',
+            'bottom': '26px'
         }}
-
+    print(marks)
     return marks
 
 
@@ -108,7 +75,11 @@ def get_area_options(level, p, election):
         parent = [ObjectId(el) for el in p]
         where['parent_id'] = {"$in": parent}
 
-    opt = [{'label': '-= выбрать всё =-', 'value': 'all'}]
+    if level == 0:
+        opt = []
+    else:
+        opt = [{'label': '-= выбрать всё =-', 'value': 'all'}]
+
     opt.extend([{
                     'label': el['name'] if el['num'] is None else str(el['num']) + ' — ' + el['name'],
                     'value': str(el['_id'])
@@ -123,20 +94,25 @@ app.layout = html.Div([
         dcc.RangeSlider(
             id='date-slider',
             min=datetime.date(2003, 9, 28).toordinal(),
-            max=datetime.date.today().toordinal(),
+            max=(datetime.date.today()+datetime.timedelta(days=1)).toordinal(),
             value=[datetime.date(2016, 1, 1).toordinal(), datetime.date.today().toordinal()],
             marks=get_marks()
         ),
     ], className="date-slider-wrapper"),
-
     html.Div([
         html.Div([
             dcc.Dropdown(
+                id='election-type',
+                className='election-type',
+                placeholder='Выберите тип выборов',
+                options=[]
+            ),
+            dcc.Dropdown(
                 id='area-level-0',
                 className='area',
-                options=[{'label': "Российская Федерация", 'value': "Российская Федерация"}],
-                value='Российская Федерация',
-                clearable=False
+                placeholder='Нет данных',
+                options=[],
+                disabled=True
             ),
             dcc.Dropdown(
                 id='area-level-1',
@@ -264,13 +240,13 @@ app.layout = html.Div([
             )
         ], className="election-bar"),
         dcc.Tabs(
-            tabs=[
-                {'label': 'Доля голосов', 'value': 0},
-                {'label': 'Число участков', 'value': 1},
-                {'label': 'Кол-во избирателей', 'value': 2},
-                {'label': 'Номер участка', 'value': 3}
+            children=[
+                dcc.Tab(label='Доля голосов', value='0'),
+                dcc.Tab(label='Число участков', value='1'),
+                dcc.Tab(label='Кол-во избирателей', value='2'),
+                dcc.Tab(label='Номер участка', value='3')
             ],
-            value=0,
+            value='0',
             id='tabs'
         ),
         html.Div([
@@ -336,7 +312,6 @@ app.layout = html.Div([
     ], style={'display': 'none'})
 ])
 
-
 @app.callback(
     Output('elections', 'options'),
     [Input('date-slider', 'value')])
@@ -348,99 +323,40 @@ def dates_selected(val):
 # < Синхронизация выбранных значений с URL >
 ########################################################################################################################
 @app.callback(
-    Output('elections', 'value'),
+    [Output('elections', 'value'),
+     Output('date-slider', 'value'),
+     Output('election-type', 'value'),
+     Output('area-level-1', 'value'),
+     Output('area-level-2', 'value'),
+     Output('area-level-3', 'value'),
+     Output('tabs', 'value')],
     [Input('page-url-content', 'children')],
     [State('elections', 'value')]
 )
 def get_data_from_url_elections(json_data, old_content):
     try:
         data = json.loads(json_data)
-        if 'elections' in data:
-            return data['elections']
-        else:
-            return old_content
-    except json.decoder.JSONDecodeError:
-        return old_content
+        print(data)
+    except TypeError:
+        raise PreventUpdate
 
+    if 'elections' in data and\
+            'date-slider' in data and \
+            'election-type' in data and \
+            'area-level-1' in data and\
+            'area-level-2' in data and\
+            'area-level-3' in data and\
+            'tabs' in data:
 
-@app.callback(
-    Output('date-slider', 'value'),
-    [Input('page-url-content', 'children')],
-    [State('date-slider', 'value')]
-)
-def get_data_from_url_date_slider(json_data, old_content):
-    try:
-        data = json.loads(json_data)
-        if 'date-slider' in data:
-            return data['date-slider']
-        else:
-            return old_content
-    except json.decoder.JSONDecodeError:
-        return old_content
-
-
-@app.callback(
-    Output('area-level-1', 'value'),
-    [Input('page-url-content', 'children')],
-    [State('area-level-1', 'value')]
-)
-def get_data_from_url_area_level_1(json_data, old_content):
-    try:
-        data = json.loads(json_data)
-        if 'area-level-1' in data:
-            return data['area-level-1']
-        else:
-            return old_content
-    except json.decoder.JSONDecodeError:
-        return old_content
-
-
-@app.callback(
-    Output('area-level-2', 'value'),
-    [Input('page-url-content', 'children')],
-    [State('area-level-2', 'value')]
-)
-def get_data_from_url_area_level_2(json_data, old_content):
-    try:
-        data = json.loads(json_data)
-        if 'area-level-2' in data:
-            return data['area-level-2']
-        else:
-            return old_content
-    except json.decoder.JSONDecodeError:
-        return old_content
-
-
-@app.callback(
-    Output('area-level-3', 'value'),
-    [Input('page-url-content', 'children')],
-    [State('area-level-3', 'value')]
-)
-def get_data_from_url_area_level_3(json_data, old_content):
-    try:
-        data = json.loads(json_data)
-        if 'area-level-3' in data:
-            return data['area-level-3']
-        else:
-            return old_content
-    except json.decoder.JSONDecodeError:
-        return old_content
-
-
-@app.callback(
-    Output('tabs', 'value'),
-    [Input('page-url-content', 'children')],
-    [State('tabs', 'value')]
-)
-def get_data_from_url_area_level_1(json_data, old_content):
-    try:
-        data = json.loads(json_data)
-        if 'tabs' in data:
-            return data['tabs']
-        else:
-            return old_content
-    except json.decoder.JSONDecodeError:
-        return old_content
+        return data['elections'],\
+               data['date-slider'], \
+               data['election-type'],\
+               data['area-level-1'],\
+               data['area-level-2'],\
+               data['area-level-3'],\
+               data['tabs']
+    else:
+        raise PreventUpdate
 
 
 @app.callback(
@@ -475,16 +391,21 @@ def update_url_twitter(pathname):
     inputs=[
         Input('elections', 'value'),
         Input('date-slider', 'value'),
+        Input('election-type', 'value'),
         Input('area-level-1', 'value'),
         Input('area-level-2', 'value'),
         Input('area-level-3', 'value'),
         Input('tabs', 'value')
     ],
     state=[State('test-location', 'pathname')])
-def update_url_data(election, dateSlider, areaLevel1, areaLevel2, areaLevel3, tabs, current_pathname):
+def update_url_data(election, dateSlider, electionType, areaLevel1, areaLevel2, areaLevel3, tabs, current_pathname):
+    if election is None:
+        raise PreventUpdate
+
     json_data = json.dumps({
         'elections': election,
         'date-slider': dateSlider,
+        'election-type': electionType,
         'area-level-1': areaLevel1,
         'area-level-2': areaLevel2,
         'area-level-3': areaLevel3,
@@ -548,26 +469,34 @@ def area_level_2_disabled(val, opt):
 ########################################################################################################################
 @app.callback(
     Output('left-info', 'children'),
-    [Input('area-level-1', 'value'),
+    [Input('election-type', 'value'),
+     Input('area-level-0', 'value'),
+     Input('area-level-1', 'value'),
      Input('area-level-2', 'value'),
      Input('area-level-3', 'value'),
-     Input('elections', 'value')],
+     Input('elections', 'value'),],
     [State('area-level-1', 'options'),
      State('area-level-2', 'options'),
      State('area-level-3', 'options')]
 )
-def left_info_all(level1_val, level2_val, level3_val, election_id,
+def left_info_all(electionType, level0_val,
+                  level1_val, level2_val, level3_val, election_id,
                   level1_opt, level2_opt, level3_opt):
-    if election_id is None:
-        return
 
-    data = database.get_area_by_levels(db, election_id, country_id,
+    if electionType is None or election_id is None:
+        return []
+
+    data = database.get_area_by_levels(db, election_id, level0_val,
                                        level1_val, level2_val, level3_val,
                                        level1_opt, level2_opt, level3_opt, statistic_mode=True)
     if data.count() == 0:
-        return
+        return []
 
-    results = data[0]['results'][election_id]
+    results = data[0]['results'][election_id][electionType]
+
+    if 'all' not in results:
+        return []
+
     # Суммирование результатов, если выбрано более одной территории
     if data.count() > 1:
         for i, area in enumerate(data):
@@ -580,40 +509,39 @@ def left_info_all(level1_val, level2_val, level3_val, election_id,
                     results[k] = results[k] + res[k]
 
     html_candidates = []
-    for i, cand in enumerate(db.election.find_one({'_id': election_id})['meta']):
-        if cand['is_meta'] is False:
-            percent = round(results[str(i)] / (results['8'] + results['9']) * 100, 2)
-            html_candidates.append(
+    for candidate in results['candidates']:
+        percent = round(results['candidates'][candidate] / (results['calculated_number_bulletin']) * 100, 2)
+        html_candidates.append(
+            html.Div([
+                html.P(candidate,
+                        title=candidate,
+                        className="left-info-name"),
                 html.Div([
-                    html.P(cand['name_simple'],
-                           title=cand['name'],
-                           className="left-info-name"),
-                    html.Div([
-                        html.Span(html.B(str(percent) + '%')),
-                        html.Span('(' + str(results[str(i)]) + ')')
-                    ], className="left-info-num", id='left-info-candidates'),
-                ], style={'order': int(results[str(i)])}),
-            )
-    results['share'] = round(float(results['6'] + results['7']) / results['0'] * 100, 2)
+                    html.Span(html.B(str(percent) + '%')),
+                    html.Span('(' + str(results['candidates'][candidate]) + ')')
+                ], className="left-info-num", id='left-info-candidates'),
+            ], style={'order': int(results['candidates'][candidate])}),
+        )
+    results['calculated_share'] = round(float(results['calculated_number_bulletin']) / results['all'] * 100, 2)
 
     return [
         html.Div([
             html.Div([
                 html.Div([
                     html.P('Всего избирателей:', className="left-info-name"),
-                    html.P(results['0'], className="left-info-num", id='left-info-all'),
+                    html.P(results['all'], className="left-info-num", id='left-info-all'),
                 ], title="Число избирателей, внесенных в список избирателей на момент окончания голосования"),
                 html.Div([
                     html.P('Голосов в помещении:', className="left-info-name"),
-                    html.P(results['3'], className="left-info-num", id='left-info-indoors'),
+                    html.P(results['in_room'], className="left-info-num", id='left-info-indoors'),
                 ], title="Число избирательных бюллетеней, выданных в помещении для голосования в день голосования"),
                 html.Div([
                     html.P('Голосов вне помещения:', className="left-info-name"),
-                    html.P(results['4'], className="left-info-num", id='left-info-outdoors'),
+                    html.P(results['out_room'], className="left-info-num", id='left-info-outdoors'),
                 ], title="Число избирательных бюллетеней, выданных вне помещения для голосования в день голосования"),
             ], className="left-info-block left-info-block-stat"),
             html.Div([
-                html.Div([html.B([str(results['share']) + '%']), ' явка']),
+                html.Div([html.B([str(results['calculated_share']) + '%']), ' явка']),
             ], className="left-info-block left-info-block-share"),
         ], className="left-info-head"),
         html.Div(html_candidates, className="left-info-block left-info-block-candidates"),
@@ -659,8 +587,36 @@ def area_level_1_options(election):
 
 
 @app.callback(
+    [Output('area-level-0', 'options'), Output('area-level-0', 'value')],
+    [Input('elections', 'value')])
+def area_level_0_options(election):
+    if election is None:
+        raise PreventUpdate
+
+    level = 0
+    options = get_area_options(level, [], election)
+    return options, options[0]['value']
+
+
+@app.callback(
+    Output('election-type', 'options'),
+    [Input('elections', 'value')])
+def election_types_options(election):
+    if election is None:
+        raise PreventUpdate
+
+    options = []
+    for sub in db.election.find_one({'_id': election}, {'sub_elections': True})['sub_elections']:
+        options.append({'label': election_type_localization.get(sub, sub), 'value': sub})
+
+    return options
+
+
+@app.callback(
     Output('graph', 'figure'),
-    [Input('area-level-1', 'value'),
+    [Input('election-type', 'value'),
+     Input('area-level-0', 'value'),
+     Input('area-level-1', 'value'),
      Input('area-level-2', 'value'),
      Input('area-level-3', 'value'),
      Input('elections', 'value'),
@@ -669,16 +625,17 @@ def area_level_1_options(election):
      State('area-level-2', 'options'),
      State('area-level-3', 'options')]
 )
-def update_graph(level1_val, level2_val, level3_val, election_id, tab,
+def update_graph(electionType, level0_val,
+                 level1_val, level2_val, level3_val, election_id, tab,
                  level1_opt, level2_opt, level3_opt):
-    if election_id is None:
-        return html.Div()
 
-    data = database.get_area_by_levels(db, election_id, country_id,
+    if electionType is None or election_id is None:
+        return {}
+
+    data = database.get_area_by_levels(db, election_id, level0_val,
                                        level1_val, level2_val, level3_val,
                                        level1_opt, level2_opt, level3_opt)
-
-    col = list(data)
+    uiks = list(data)
 
     l = data.count()
     if l < 500:
@@ -698,54 +655,55 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
     xaxis_range = [0, 105]
     yaxis_title = ""
     autorange = False
-    if tab == 0:
+    if tab == '0':
         yaxis_title = "Доля голосов"
         autorange = False
+        hovermode = 'closest'
 
-        for i, m in enumerate(db.election.find_one({'_id': election_id})['meta']):
-            if m is None:
-                continue
-            if not m['is_meta']:
-                share_votes = [(int(item['results'][election_id][str(i)]) /
-                                item['results'][election_id]['number_bulletin'] * 100)
-                               if item['results'][election_id]['number_bulletin'] > 0 else 0
-                               for item in col]
+        if len(uiks) < 2 or \
+                uiks[0]['results'][election_id][electionType]['candidates'].keys() != uiks[-1]['results'][election_id][electionType]['candidates'].keys():
+            return {}
 
-                markers.append(
-                    go.Scattergl(
-                        x=[item['results'][election_id]['share'] for item in col],
-                        y=share_votes,
-                        text=[
-                            item['name'] + '</br>'
-                            + 'Всего избирателей: ' + str(item['results'][election_id]['0']) + '</br>'
-                            + 'Голос в помещении: ' + str(item['results'][election_id]['3']) + '</br>'
-                            + 'Голос вне помещения: ' + str(item['results'][election_id]['4']) for item in col],
-                        customdata=[{
-                                        'name': item['name'],
-                                        'address': (item['address'] if 'address' in item else ''),
-                                        'total': item['results'][election_id]['0'],
-                                        'votes_inroom': item['results'][election_id]['3'],
-                                        'votes_outroom': item['results'][election_id]['4'],
-                                        'share': item['results'][election_id]['share']
-                                    } if l < limit_points_with_description else {
-                            '_id': str(item['_id']),
-                        } for item in col],
-                        name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
-                        mode='markers',
-                        marker={
-                            'sizemode': 'area',
-                            'color': colors[k],
-                            'size': point_size,
-                            'opacity': point_opacity,
-                            'line': {'width': 0.1, 'color': 'white'}
-                        }
-                    )
-                )
-                k += 1
+        for candidate in uiks[0]['results'][election_id][electionType]['candidates']:
 
-    elif tab == 1:
+            share_votes = [(int(item['results'][election_id][electionType]['candidates'][candidate]) /
+                            item['results'][election_id][electionType]['calculated_number_bulletin'] * 100)
+                           if item['results'][election_id][electionType]['calculated_number_bulletin'] > 0 else 0
+                           for item in uiks]
+
+            markers.append(
+                go.Scattergl(
+                    x=[item['results'][election_id][electionType]['calculated_share'] for item in uiks],
+                    y=share_votes,
+                    text=[
+                        item['name'] + '</br>'
+                        + 'Всего избирателей: ' + str(item['results'][election_id][electionType]['all']) + '</br>'
+                        + 'Голос в помещении: ' + str(item['results'][election_id][electionType]['in_room']) + '</br>'
+                        + 'Голос вне помещения: ' + str(item['results'][election_id][electionType]['out_room']) for item in uiks],
+                    customdata=[{
+                                    'name': item['name'],
+                                    'address': (item['address'] if 'address' in item else ''),
+                                    'total': item['results'][election_id][electionType]['all'],
+                                    'votes_inroom': item['results'][election_id][electionType]['in_room'],
+                                    'votes_outroom': item['results'][election_id][electionType]['out_room'],
+                                    'calculated_share': item['results'][election_id][electionType]['calculated_share']
+                                } for item in uiks],
+                    name=textwrap.fill(candidate, 32).replace("\n", "<br>"),
+                    mode='markers',
+                    marker={
+                        'sizemode': 'area',
+                        'color': colors[k],
+                        'size': point_size,
+                        'opacity': point_opacity,
+                        'line': {'width': 0.1, 'color': 'white'}
+                    }
+            )
+            )
+            k += 1
+
+    elif tab == '1':
         autorange = True
-        import math
+        hovermode = 'x'
 
         if l < 1000000:
             yaxis_title = "Кол-во избирательных участков (в 1% интервале явки)"
@@ -755,9 +713,9 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
             rou = 10
 
         data = [0 for _ in range(100 * rou + 1)]
-        for uik in col:
-            if uik['results'][election_id]['0'] > 500:
-                share = uik['results'][election_id]['share']
+        for uik in uiks:
+            if uik['results'][election_id][electionType]['all'] > 500:
+                share = uik['results'][election_id][electionType]['calculated_share']
                 share = math.floor(share * rou)
                 data[share] += 1
 
@@ -773,32 +731,30 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
             )
         )
 
-    elif tab == 2:
+    elif tab == '2':
         yaxis_title = "Кол-во избирателей"
         autorange = True
+        hovermode = 'closest'
 
-        number_of_voters = [item['results'][election_id]['0'] for item in col]
+        number_of_voters = [item['results'][election_id][electionType]['all'] for item in uiks]
 
         markers.append(
             go.Scattergl(
-                x=[item['results'][election_id]['share'] for item in col],
+                x=[item['results'][election_id][electionType]['calculated_share'] for item in uiks],
                 y=number_of_voters,
                 text=[
                     item['name'] + '</br>'
-                    + 'Всего избирателей: ' + str(item['results'][election_id]['0']) + '</br>'
-                    + 'Голос в помещении: ' + str(item['results'][election_id]['3']) + '</br>'
-                    + 'Голос вне помещения: ' + str(item['results'][election_id]['4']) for item in col],
+                    + 'Всего избирателей: ' + str(item['results'][election_id][electionType]['all']) + '</br>'
+                    + 'Голос в помещении: ' + str(item['results'][election_id][electionType]['in_room']) + '</br>'
+                    + 'Голос вне помещения: ' + str(item['results'][election_id][electionType]['out_room']) for item in uiks],
                 customdata=[{
                                 'name': item['name'],
                                 'address': (item['address'] if 'address' in item else ''),
-                                'total': item['results'][election_id]['0'],
-                                'votes_inroom': item['results'][election_id]['3'],
-                                'votes_outroom': item['results'][election_id]['4'],
-                                'share': item['results'][election_id]['share']
-                            } if l < limit_points_with_description else {
-                    '_id': str(item['_id']),
-                }
-                            for item in col],
+                                'total': item['results'][election_id][electionType]['all'],
+                                'votes_inroom': item['results'][election_id][electionType]['in_room'],
+                                'votes_outroom': item['results'][election_id][electionType]['out_room'],
+                                'calculated_share': item['results'][election_id][electionType]['calculated_share']
+                            } for item in uiks],
                 # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
                 mode='markers',
                 showlegend=False,
@@ -811,38 +767,36 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
             )
         )
 
-    elif tab == 3:
+    elif tab == '3':
         xaxis_title = "Номера участков"
         xaxis_range = None
         yaxis_title = "Явка"
         autorange = True
+        hovermode = 'x'
 
-        if len(col) > 0 and 'num' in col[0] and col[0]['num'] is not None:
+        if len(uiks) > 0 and 'num' in uiks[0] and uiks[0]['num'] is not None:
             # Сортировка по номеру
-            OrderCol = sorted(col, key=lambda k: k['num'])
+            OrderCol = sorted(uiks, key=lambda k: k['num'])
 
             markers.append(
                 go.Bar(
                     # добавлен невидимый символ к номеру, чтобы библиотека визуализации данных обрабатывала как текст
                     # и не делала пропуски, если участки идут не подряд
                     x=[str(item['num']) + ' ​' for item in OrderCol],
-                    y=[item['results'][election_id]['share'] for item in OrderCol],
+                    y=[item['results'][election_id][electionType]['calculated_share'] for item in OrderCol],
                     text=[
                         item['name'] + '</br>'
-                        + 'Всего избирателей: ' + str(item['results'][election_id]['0']) + '</br>'
-                        + 'Голос в помещении: ' + str(item['results'][election_id]['3']) + '</br>'
-                        + 'Голос вне помещения: ' + str(item['results'][election_id]['4']) for item in OrderCol],
+                        + 'Всего избирателей: ' + str(item['results'][election_id][electionType]['all']) + '</br>'
+                        + 'Голос в помещении: ' + str(item['results'][election_id][electionType]['in_room']) + '</br>'
+                        + 'Голос вне помещения: ' + str(item['results'][election_id][electionType]['out_room']) for item in OrderCol],
                     customdata=[{
                                     'name': item['name'],
                                     'address': (item['address'] if 'address' in item else ''),
-                                    'total': item['results'][election_id]['0'],
-                                    'votes_inroom': item['results'][election_id]['3'],
-                                    'votes_outroom': item['results'][election_id]['4'],
-                                    'share': item['results'][election_id]['share']
-                                } if l < limit_points_with_description else {
-                        '_id': str(item['_id']),
-                    }
-                                for item in OrderCol],
+                                    'total': item['results'][election_id][electionType]['all'],
+                                    'votes_inroom': item['results'][election_id][electionType]['in_room'],
+                                    'votes_outroom': item['results'][election_id][electionType]['out_room'],
+                                    'calculated_share': item['results'][election_id][electionType]['calculated_share']
+                                } for item in OrderCol],
                     marker={
                         'color': colors[8],
                         'opacity': 0.5,
@@ -851,7 +805,7 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
                 )
             )
 
-    return {
+    daataa = {
         'data': markers,
         'layout': go.Layout(
             xaxis={
@@ -873,9 +827,12 @@ def update_graph(level1_val, level2_val, level3_val, election_id, tab,
                 x=0,
                 y=1
             ),
-            height=520
+            height=550,
+            hovermode=hovermode
         )
     }
+
+    return daataa
 
 
 ########################################################################################################################
@@ -892,6 +849,7 @@ def display_selected_data(selectedData, election_id):
 
     points = set()
     data = []
+
     for el in selectedData['points']:
         if el['pointNumber'] not in points:
             points.add(el['pointNumber'])
@@ -902,17 +860,22 @@ def display_selected_data(selectedData, election_id):
                            'Всего избирателей: ' + str(el['customdata']['total']) + ' | ' +
                            'Голосов в помещении: ' + str(el['customdata']['votes_inroom']) + ' | ' +
                            'Голосов вне помещения: ' + str(el['customdata']['votes_outroom']) + ' | ' +
-                           'Явка: ' + str(el['customdata']['share']) + '%'),
+                           'Явка: ' + str(el['customdata']['calculated_share']) + '%'),
                     html.P(el['customdata']['address']),
                 ], className="selected-data-block")
             )
 
-    return html.Div(data)
+    data.insert(0, html.Div([
+        html.P("Количество выбранных УИКов: "+str(len(points)))
+    ], className="selected-data-block"))
+
+    return data
 
 
 ########################################################################################################################
 # </ Отображение подробной информации о выбранных на графике участках >
 ########################################################################################################################
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)

@@ -14,27 +14,6 @@ RawUIKRecord = namedtuple(
     ['num', 'name', 'results']
 )
 
-RESULT_ROWS = [
-    'Число избирателей, внесенных в список избирателей на момент окончания голосования',
-    'Число избирательных бюллетеней, полученных участковой избирательной комиссией',
-    'Число избирательных бюллетеней, выданных избирателям, проголосовавшим досрочно',
-    'Число избирательных бюллетеней, выданных в помещении для голосования в день голосования',
-    'Число избирательных бюллетеней, выданных вне помещения для голосования в день голосования',
-    'Число погашенных избирательных бюллетеней',
-    'Число избирательных бюллетеней, содержащихся в переносных ящиках для голосования',
-    'Число избирательных бюллетеней, содержащихся в стационарных ящиках для голосования',
-    'Число недействительных избирательных бюллетеней',
-    'Число действительных избирательных бюллетеней',
-    'Число открепительных удостоверений, полученных участковой избирательной комиссией',
-    'Число открепительных удостоверений, выданных на избирательном участке до дня голосования',
-    'Число избирателей, проголосовавших по открепительным удостоверениям на избирательном участке',
-    'Число погашенных неиспользованных открепительных удостоверений',
-    'Число открепительных удостоверений, выданных избирателям территориальной избирательной комиссией',
-    'Число утраченных открепительных удостоверений',
-    'Число утраченных избирательных бюллетеней',
-    'Число избирательных бюллетеней, не учтенных при получении'
-]
-
 
 def __get_soup__(html):
     # Удаление </html> тега, который может оказаться посреди страницы.
@@ -56,11 +35,12 @@ def split_name(name):
             meta = name.split(" ")
             text = name[(len(meta[0])+1):]
 
-    num = ''.join(x for x in name if x.isdigit())
-    if num == '':
-        num = None
-    else:
-        num = int(num)
+    num = None
+    for n in name.split():
+        tnum = ''.join(x for x in n if x.isdigit())
+        if len(tnum):
+            num = int(tnum)
+            break
 
     return [num, text]
 
@@ -152,41 +132,65 @@ def url_local_itog(html):
     return None
 
 
-def _simple_table_meta(table):
-    rows = table.find_all('tr')
-    arr = []
+def get_election_table(html):
+    soup = __get_soup__(html)
+    table = soup.find_all('table')[-3]
+    # В итогах выборов президента 2008 на одну таблицу меньше, потому берем не 3 с конца, а 2
+    if len(table.find_all('tr')) == 1:
+        table = soup.find_all('table')[-2]
+    return table
 
-    for row in rows:
+
+# Парсит таблицу с результатами выборов региона и возвращает словарь, содержащий индексы
+# недействительных бюллетеней, действительных бюллетеней, а также кандидатов и их индексов.
+def table_meta(html):
+    table = get_election_table(html)
+
+    table_uiks = table.find_all('table')[0]
+    rows = table_uiks.find_all('tr')[1:]
+    meta = {
+        0: {'name': 'all', 'is_meta': True}
+    }
+    already = []
+
+    for i, row in enumerate(rows):
         column = row.find_all('td')
         if len(column) == 3:
             _, title, _ = column
 
             title = title.text.split('.')[-1].strip()
 
-            if title == '':
-                continue
-            else:
+            if title != '':
+
                 if title.startswith('Число '):
-                    arr.append({'name': title, 'is_meta': True})
+                    if "early" not in already and "досрочно" in title:
+                        meta[i] = {'name': "early", 'is_meta': True}
+                        already.append("early")
+                    elif "in_room" not in already and ("в помещении" in title or "выданных избирателям на избирательном" in title):
+                        meta[i] = {'name': "in_room", 'is_meta': True}
+                        already.append("in_room")
+                    elif "out_room" not in already and "вне помещения" in title:
+                        meta[i] = {'name': "out_room", 'is_meta': True}
+                        already.append("out_room")
+                    elif "invalid" not in already and " недействительных" in title:
+                        meta[i] = {'name': "invalid", 'is_meta': True}
+                        already.append("invalid")
+                    elif "valid" not in already and " действительных" in title:
+                        meta[i] = {'name': "valid", 'is_meta': True}
+                        already.append("valid")
+
+                elif title.startswith('В '):
+                    continue
+
                 else:
-                    arr.append({'name': title, 'name_simple': simple_name(title), 'is_meta': False})
+                    meta[i] = {'name': simple_name(title)}
 
-    return arr
-
-
-# Парсит простую одномерную таблицу с результатами выборов региона и возвращает список параметров и партий/кандидатов
-def simple_table_meta(html):
-    soup = __get_soup__(html)
-    table = soup.find_all('table')[-3]
-    # В итогах выборов президента 2008 на одну таблицу меньше, потому берем не 3 с конца, а 2
-    if len(table.find_all('tr')) == 1:
-        table = soup.find_all('table')[-2]
-    return _simple_table_meta(table)
+    return meta
 
 
-def two_dimensional_table(html):
-    soup = __get_soup__(html)
-    table = soup.find_all('table')[-3]
+# Парсит таблицу с результатами выборов региона и возвращает список УИКов с результатами на них
+def table_results(html, meta):
+    table = get_election_table(html)
 
     # Получаем список УИКов
     table_uiks = table.find_all('table')[1]
@@ -201,29 +205,51 @@ def two_dimensional_table(html):
         data_rows = table_uiks.find_all('tr')[1:]
 
         # Массив результатов выборов для конкретного УИКа
-        res = {}
-        n = 0
+        res = {'candidates': {}}
         # Перебор строк с данными
-        for row in data_rows:
-            data_column = row.find_all('td')
+        for i, row in enumerate(data_rows):
 
-            # Пропуск пустой строки.
-            # Читаем только если число колонок совпадает и в них есть данные
-            if len(data_column) == len(uiks):
+            if i in meta:
+                data_column = row.find_all('td')
+
                 tag_b = data_column[k].find('b')
                 if tag_b:
                     num = tag_b.text
-                    res[str(n)] = int(num)
-                    n += 1
+                    meta_item = meta[i]
 
-        if res['0'] == 0:
-            res['share'] = 0
+                    key = meta_item['name']
+                    if 'is_meta' in meta_item:
+                        res[key] = int(num)
+                    else:
+                        res['candidates'][key] = int(num)
+
+        res['calculated_number_bulletin'] = res['invalid'] + res['valid']
+
+        if res['all'] == 0:
+            res['calculated_share'] = 0
         else:
-            res['share'] = round(float(res['6'] + res['7']) / res['0'] * 100, 2)
+            res['calculated_share'] = round(float(res['calculated_number_bulletin']) / res['all'] * 100, 2)
 
-        res['number_bulletin'] = res['8'] + res['9']
+        # Если данные отсутсвуют, то обнуление
+        for el in ['early']:
+            if el not in res:
+                res[el] = 0
 
-        data.append(RawUIKRecord(spl[0], spl[1], res))
+        data.append(
+            {
+                'num': spl[0],
+                'name': spl[1],
+                'results': {
+                    'all': res['all'],
+                    'early': res['early'],
+                    'in_room': res['in_room'],
+                    'out_room': res['out_room'],
+                    'invalid': res['invalid'],
+                    'valid': res['valid'],
+                    'calculated_share': res['calculated_share'],
+                    'calculated_number_bulletin': res['calculated_number_bulletin'],
+                    'candidates': res['candidates']}
+            })
     return data
 
 
@@ -296,9 +322,12 @@ def parse_list_elections(html, urovproved):
                     election_subregion = _subregion
 
             if election_region == "Российская Федерация":
-                region = ["Российская Федерация", None, None]
+                region = ["Российская Федерация"]
             else:
-                region = ["Российская Федерация", election_region, election_subregion]
+                if election_subregion is None:
+                    region = ["Российская Федерация", election_region]
+                else:
+                    region = ["Российская Федерация", election_region, election_subregion]
 
             title = item[1].text.strip()
             elections.append({
@@ -374,53 +403,42 @@ def get_elections_type(html):
     results = []
     for item in td:
         if item.get('class') is None or item.get('class')[0] != "tdReport":
-            results = []
+            continue
         else:
-            if (len(results) > 0 and
-                    item.find('a').text.startswith('Сводная таблица') and
-                    (results[-1].find('a').text.startswith('Результаты выборов') or
-                     results[-1].find('a').text.startswith('Данные о предварительных') or
-                     results[-1].find('a').text.startswith('Предварительные итоги'))):
-                continue
+            if item.find('a').text.startswith('Сводная таблица'):
+                results.append(item)
 
-            results.append(item)
-
-    types = []
+    types = {}
     for item in results:
         text = item.find('a').text
+        url = item.find('a')['href']
 
-        if text in ["Результаты выборов по единому округу",
-                    "Результаты выборов",
-                    "Результаты выборов по федеральному избирательному округу",
-                    "Данные о предварительных итогах голосования по единому округу",
-                    "Данные о предварительных итогах голосования",
-                    "Данные о предварительных итогах референдума",
-                    "Результаты референдума",
-                    "Сводная таблица результатов выборов"]:
+        if text in ["Сводная таблица результатов выборов по единому округу",
+                    "Сводная таблица результатов выборов",
+                    "Сводная таблица предварительных итогов голосования"]:
             if 'edin' in types:
                 return [0, 0, []]
-            types.append('edin')
+            types['edin'] = url
 
-        elif text in ["Результаты выборов по единому мажоритарному округу",
-                      "Данные о предварительных итогах голосования по единому мажоритарному округу"]:
+        elif text in ["Сводная таблица результатов выборов по единому мажоритарному округу",
+                      "Сводная таблица предварительных итогов голосования по единому мажоритарному округу"]:
             if 'edmj' in types:
                 return [0, 0, []]
-            types.append('edmj')
+            types['edmj'] = url
 
-        elif text in ["Результаты выборов по единому многомандатному округу",
-                      "Данные о предварительных итогах голосования по единому многомандатному округу"]:
+        elif text in ["Сводная таблица результатов выборов по единому многомандатному округу",
+                      "Сводная таблица предварительных итогов голосования по единому многомандатному округу"]:
             if 'edmn' in types:
                 return [0, 0, []]
-            types.append('edmn')
+            types['edmn'] = url
 
-        elif text in ["Результаты выборов по одномандатному (многомандатному) округу",
-                      "Результаты выборов по одномандатному избирательному округу",
-                      "Предварительные итоги голосования по одномандатному избирательному округу",
-                      "Данные о предварительных итогах голосования по одномандатному избирательному округу"
-                      "Данные о предварительных итогах голосования по одномандатному (многомандатному) округу"]:
+        elif text in ["Сводная таблица результатов выборов по одномандатному (многомандатному) округу",
+                      "Сводная таблица результатов выборов по одномандатному избирательному округу",
+                      "Сводная таблица предварительных итогов голосования по одномандатному избирательному округу",
+                      "Сводная таблица предварительных итогов голосования по одномандатному (многомандатному) округу"]:
             if 'mngm' in types:
                 return [0, 0, []]
-            types.append('mngm')
+            types['mngm'] = url
 
-    return [len(results), len(types), types]
+    return {'status': len(results) == len(types), 'types': types}
 

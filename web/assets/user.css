@@ -327,7 +327,7 @@ body {
     border-radius: 0 5px 5px 0;
 }
 .left-info-block-share div {
-    height: 64px;
+    height: 63px;
     padding: 25px 0 0 0 !important;
 }
 
@@ -513,4 +513,18 @@ body {
 
 .legendpoints .scatterpts {
     opacity: 0.5 !important;
+}
+
+.rc-slider-handle {
+    z-index: 2;
+}
+
+.tab {
+    display: flex !important;
+    padding: 12px 12px !important;
+    font-size: 0.9em;
+}
+
+.tab span {
+    margin: auto;
 }

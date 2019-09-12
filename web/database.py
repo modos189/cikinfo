@@ -28,7 +28,6 @@ def get_area_by_levels(db, election_id, level0_val,
         for i, a in enumerate(max_zoom_area):
             if a == 'all':
                 continue
-            print(a)
             if type(a) is str:
                 parent_ids.append(ObjectId(a))
             elif type(a) is ObjectId:

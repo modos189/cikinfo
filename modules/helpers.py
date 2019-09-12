@@ -1,4 +1,5 @@
 import asyncio
+import aiohttp
 import async_timeout
 import copy
 
@@ -20,7 +21,7 @@ async def fetch(session, url, params, retry=0):
             async with session.post(url, data=params, headers=HEADERS) as response:
                 return await response.text(encoding='windows-1251')
 
-    except (asyncio.TimeoutError, OSError) as err:
+    except (asyncio.TimeoutError, OSError, aiohttp.ClientConnectionError) as err:
         retry += 1
         if retry > 30:
             raise TimeoutError()

@@ -242,9 +242,10 @@ app.layout = html.Div([
         dcc.Tabs(
             children=[
                 dcc.Tab(label='Доля голосов', value='0'),
-                dcc.Tab(label='Число участков', value='1'),
-                dcc.Tab(label='Кол-во избирателей', value='2'),
-                dcc.Tab(label='Номер участка', value='3')
+                dcc.Tab(label='Поиск перекладок', value='1'),
+                dcc.Tab(label='Число участков', value='2'),
+                dcc.Tab(label='Кол-во избирателей', value='3'),
+                dcc.Tab(label='Номер участка', value='4')
             ],
             value='0',
             id='tabs'
@@ -309,8 +310,10 @@ app.layout = html.Div([
         html.Div(id='page-url-content'),
         html.Div('', id='page-hack'),
         html.Div('', id='page-hack-2'),
+        html.Div('lock', id='graph-lock'),
     ], style={'display': 'none'})
 ])
+
 
 @app.callback(
     Output('elections', 'options'),
@@ -336,8 +339,7 @@ def dates_selected(val):
 def get_data_from_url_elections(json_data, old_content):
     try:
         data = json.loads(json_data)
-        print(data)
-    except TypeError:
+    except (TypeError, json.decoder.JSONDecodeError) as err:
         raise PreventUpdate
 
     if 'elections' in data and\
@@ -398,14 +400,14 @@ def update_url_twitter(pathname):
         Input('tabs', 'value')
     ],
     state=[State('test-location', 'pathname')])
-def update_url_data(election, dateSlider, electionType, areaLevel1, areaLevel2, areaLevel3, tabs, current_pathname):
+def update_url_data(election, dateSlider, election_type, areaLevel1, areaLevel2, areaLevel3, tabs, current_pathname):
     if election is None:
         raise PreventUpdate
 
     json_data = json.dumps({
         'elections': election,
         'date-slider': dateSlider,
-        'election-type': electionType,
+        'election-type': election_type,
         'area-level-1': areaLevel1,
         'area-level-2': areaLevel2,
         'area-level-3': areaLevel3,
@@ -474,16 +476,16 @@ def area_level_2_disabled(val, opt):
      Input('area-level-1', 'value'),
      Input('area-level-2', 'value'),
      Input('area-level-3', 'value'),
-     Input('elections', 'value'),],
+     Input('elections', 'value')],
     [State('area-level-1', 'options'),
      State('area-level-2', 'options'),
      State('area-level-3', 'options')]
 )
-def left_info_all(electionType, level0_val,
+def left_info_all(election_type, level0_val,
                   level1_val, level2_val, level3_val, election_id,
                   level1_opt, level2_opt, level3_opt):
 
-    if electionType is None or election_id is None:
+    if election_type is None or election_id is None:
         return []
 
     data = database.get_area_by_levels(db, election_id, level0_val,
@@ -492,7 +494,7 @@ def left_info_all(electionType, level0_val,
     if data.count() == 0:
         return []
 
-    results = data[0]['results'][election_id][electionType]
+    results = data[0]['results'][election_id][election_type]
 
     if 'all' not in results:
         return []
@@ -566,14 +568,15 @@ def area_level_3_options(level_2, election):
 
 
 @app.callback(
-    Output('area-level-2', 'options'),
+    [Output('graph-lock', 'children'),
+     Output('area-level-2', 'options')],
     [Input('area-level-1', 'value'),
      Input('elections', 'value')])
 def area_level_2_options(parent, election):
     if parent is None or len(parent) == 0:
-        return []
+        return "lock", []
     level = 2
-    return get_area_options(level, parent, election)
+    return "unlock", get_area_options(level, parent, election)
 
 
 @app.callback(
@@ -595,6 +598,10 @@ def area_level_0_options(election):
 
     level = 0
     options = get_area_options(level, [], election)
+
+    if len(options) == 0:
+        return [], None
+
     return options, options[0]['value']
 
 
@@ -614,22 +621,26 @@ def election_types_options(election):
 
 @app.callback(
     Output('graph', 'figure'),
-    [Input('election-type', 'value'),
+    [Input('graph-lock', 'children'),
+     Input('election-type', 'value'),
      Input('area-level-0', 'value'),
      Input('area-level-1', 'value'),
      Input('area-level-2', 'value'),
      Input('area-level-3', 'value'),
-     Input('elections', 'value'),
      Input('tabs', 'value')],
     [State('area-level-1', 'options'),
      State('area-level-2', 'options'),
-     State('area-level-3', 'options')]
+     State('area-level-3', 'options'),
+     State('elections', 'value')]
 )
-def update_graph(electionType, level0_val,
-                 level1_val, level2_val, level3_val, election_id, tab,
-                 level1_opt, level2_opt, level3_opt):
+def update_graph(graph_lock, election_type, level0_val,
+                 level1_val, level2_val, level3_val, tab,
+                 level1_opt, level2_opt, level3_opt, election_id):
 
-    if electionType is None or election_id is None:
+    if graph_lock == 'lock':
+        return {}
+
+    if election_type is None or election_id is None:
         return {}
 
     data = database.get_area_by_levels(db, election_id, level0_val,
@@ -661,32 +672,32 @@ def update_graph(electionType, level0_val,
         hovermode = 'closest'
 
         if len(uiks) < 2 or \
-                uiks[0]['results'][election_id][electionType]['candidates'].keys() != uiks[-1]['results'][election_id][electionType]['candidates'].keys():
+                uiks[0]['results'][election_id][election_type]['candidates'].keys() != uiks[-1]['results'][election_id][election_type]['candidates'].keys():
             return {}
 
-        for candidate in uiks[0]['results'][election_id][electionType]['candidates']:
+        for candidate in uiks[0]['results'][election_id][election_type]['candidates']:
 
-            share_votes = [(int(item['results'][election_id][electionType]['candidates'][candidate]) /
-                            item['results'][election_id][electionType]['calculated_number_bulletin'] * 100)
-                           if item['results'][election_id][electionType]['calculated_number_bulletin'] > 0 else 0
+            share_votes = [(int(item['results'][election_id][election_type]['candidates'][candidate]) /
+                            item['results'][election_id][election_type]['calculated_number_bulletin'] * 100)
+                           if item['results'][election_id][election_type]['calculated_number_bulletin'] > 0 else 0
                            for item in uiks]
 
             markers.append(
                 go.Scattergl(
-                    x=[item['results'][election_id][electionType]['calculated_share'] for item in uiks],
+                    x=[item['results'][election_id][election_type]['calculated_share'] for item in uiks],
                     y=share_votes,
                     text=[
                         item['name'] + '</br>'
-                        + 'Всего избирателей: ' + str(item['results'][election_id][electionType]['all']) + '</br>'
-                        + 'Голос в помещении: ' + str(item['results'][election_id][electionType]['in_room']) + '</br>'
-                        + 'Голос вне помещения: ' + str(item['results'][election_id][electionType]['out_room']) for item in uiks],
+                        + 'Всего избирателей: ' + str(item['results'][election_id][election_type]['all']) + '</br>'
+                        + 'Голос в помещении: ' + str(item['results'][election_id][election_type]['in_room']) + '</br>'
+                        + 'Голос вне помещения: ' + str(item['results'][election_id][election_type]['out_room']) for item in uiks],
                     customdata=[{
                                     'name': item['name'],
                                     'address': (item['address'] if 'address' in item else ''),
-                                    'total': item['results'][election_id][electionType]['all'],
-                                    'votes_inroom': item['results'][election_id][electionType]['in_room'],
-                                    'votes_outroom': item['results'][election_id][electionType]['out_room'],
-                                    'calculated_share': item['results'][election_id][electionType]['calculated_share']
+                                    'total': item['results'][election_id][election_type]['all'],
+                                    'votes_inroom': item['results'][election_id][election_type]['in_room'],
+                                    'votes_outroom': item['results'][election_id][election_type]['out_room'],
+                                    'calculated_share': item['results'][election_id][election_type]['calculated_share']
                                 } for item in uiks],
                     name=textwrap.fill(candidate, 32).replace("\n", "<br>"),
                     mode='markers',
@@ -701,7 +712,115 @@ def update_graph(electionType, level0_val,
             )
             k += 1
 
-    elif tab == '1':
+    if tab == '1':
+        xaxis_title = "Доля голосов за победителя"
+        yaxis_title = "Процент кандидата от пула голосов за оппозицию"
+        autorange = False
+        hovermode = 'closest'
+
+        if len(uiks) < 2 or \
+                uiks[0]['results'][election_id][election_type]['candidates'].keys() != uiks[-1]['results'][election_id][election_type]['candidates'].keys():
+            return {}
+
+        parent_data = database.get_area_by_levels(db, election_id, level0_val,
+                                           level1_val, level2_val, level3_val,
+                                           level1_opt, level2_opt, level3_opt, statistic_mode=True)
+        if parent_data.count() == 0:
+            return []
+
+        parent_results = parent_data[0]['results'][election_id][election_type]
+
+        if 'all' not in parent_results or len(parent_results['candidates']) == 0:
+            return []
+
+        winners = {}
+        for candidate in parent_results['candidates']:
+            per = parent_results['candidates'][candidate] / (parent_results['calculated_number_bulletin']) * 100
+            winners[candidate] = per
+
+        winner = max(winners, key=winners.get)
+
+        share_winner = [(int(item['results'][election_id][election_type]['candidates'][winner]) /
+                        item['results'][election_id][election_type]['calculated_number_bulletin'] * 100)
+                       if item['results'][election_id][election_type]['calculated_number_bulletin'] > 0 else 0
+                       for item in uiks]
+
+        for candidate in uiks[0]['results'][election_id][election_type]['candidates']:
+
+            if candidate == winner:
+                continue
+
+            share_candidate = []
+            for item in uiks:
+                if item['results'][election_id][election_type]['calculated_number_bulletin'] > 0:
+
+                    pool = 0
+                    for c in item['results'][election_id][election_type]['candidates']:
+                        if c != winner:
+                            pool += item['results'][election_id][election_type]['candidates'][c]
+
+                    share_from_pool = 0
+                    if pool > 0:
+                        share_from_pool = item['results'][election_id][election_type]['candidates'][
+                                              candidate] / pool * 100
+                    share_candidate.append(share_from_pool)
+                else:
+                    share_candidate.append(0)
+
+            share_data = {}
+            for i, item in enumerate(share_winner):
+                round_x = round(share_winner[i])
+                if round_x in share_data:
+                    share_data[round_x].append(share_candidate[i])
+                else:
+                    share_data[round_x] = [share_candidate[i]]
+
+            for sh_k in share_data:
+                avg = sum(share_data[sh_k]) / len(share_data[sh_k])
+                share_data[sh_k] = avg
+
+            markers.append(
+                go.Bar(
+                    x=list(share_data.keys()),
+                    y=list(share_data.values()),
+                    name=textwrap.fill(candidate, 32).replace("\n", "<br>"),
+                    marker={
+                        'color': colors[k],
+                        'opacity': point_opacity
+                    }
+                )
+            )
+            k += 1
+
+        return {
+            'data': markers,
+            'layout': go.Layout(
+                xaxis={
+                    'title': xaxis_title,
+                    'range': xaxis_range
+                },
+                yaxis={
+                    'title': yaxis_title,
+                    'range': [0, 105],
+                    'autorange': autorange
+                },
+                margin=go.Margin(
+                    l=80,
+                    r=30,
+                    b=55,
+                    t=10
+                ),
+                legend=go.Legend(
+                    x=0,
+                    y=1
+                ),
+                barmode='stack',
+                height=550,
+                hovermode=hovermode
+            )
+        }
+
+    elif tab == '2':
         autorange = True
         hovermode = 'x'
 
@@ -714,8 +833,8 @@ def update_graph(electionType, level0_val,
 
         data = [0 for _ in range(100 * rou + 1)]
         for uik in uiks:
-            if uik['results'][election_id][electionType]['all'] > 500:
-                share = uik['results'][election_id][electionType]['calculated_share']
+            if uik['results'][election_id][election_type]['all'] > 500:
+                share = uik['results'][election_id][election_type]['calculated_share']
                 share = math.floor(share * rou)
                 data[share] += 1
 
@@ -731,29 +850,29 @@ def update_graph(electionType, level0_val,
             )
         )
 
-    elif tab == '2':
+    elif tab == '3':
         yaxis_title = "Кол-во избирателей"
         autorange = True
         hovermode = 'closest'
 
-        number_of_voters = [item['results'][election_id][electionType]['all'] for item in uiks]
+        number_of_voters = [item['results'][election_id][election_type]['all'] for item in uiks]
 
         markers.append(
             go.Scattergl(
-                x=[item['results'][election_id][electionType]['calculated_share'] for item in uiks],
+                x=[item['results'][election_id][election_type]['calculated_share'] for item in uiks],
                 y=number_of_voters,
                 text=[
                     item['name'] + '</br>'
-                    + 'Всего избирателей: ' + str(item['results'][election_id][electionType]['all']) + '</br>'
-                    + 'Голос в помещении: ' + str(item['results'][election_id][electionType]['in_room']) + '</br>'
-                    + 'Голос вне помещения: ' + str(item['results'][election_id][electionType]['out_room']) for item in uiks],
+                    + 'Всего избирателей: ' + str(item['results'][election_id][election_type]['all']) + '</br>'
+                    + 'Голос в помещении: ' + str(item['results'][election_id][election_type]['in_room']) + '</br>'
+                    + 'Голос вне помещения: ' + str(item['results'][election_id][election_type]['out_room']) for item in uiks],
                 customdata=[{
                                 'name': item['name'],
                                 'address': (item['address'] if 'address' in item else ''),
-                                'total': item['results'][election_id][electionType]['all'],
-                                'votes_inroom': item['results'][election_id][electionType]['in_room'],
-                                'votes_outroom': item['results'][election_id][electionType]['out_room'],
-                                'calculated_share': item['results'][election_id][electionType]['calculated_share']
+                                'total': item['results'][election_id][election_type]['all'],
+                                'votes_inroom': item['results'][election_id][election_type]['in_room'],
+                                'votes_outroom': item['results'][election_id][election_type]['out_room'],
+                                'calculated_share': item['results'][election_id][election_type]['calculated_share']
                             } for item in uiks],
                 # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
                 mode='markers',
@@ -767,7 +886,7 @@ def update_graph(electionType, level0_val,
             )
         )
 
-    elif tab == '3':
+    elif tab == '4':
         xaxis_title = "Номера участков"
         xaxis_range = None
         yaxis_title = "Явка"
@@ -783,19 +902,19 @@ def update_graph(electionType, level0_val,
                     # добавлен невидимый символ к номеру, чтобы библиотека визуализации данных обрабатывала как текст
                     # и не делала пропуски, если участки идут не подряд
                     x=[str(item['num']) + ' ​' for item in OrderCol],
-                    y=[item['results'][election_id][electionType]['calculated_share'] for item in OrderCol],
+                    y=[item['results'][election_id][election_type]['calculated_share'] for item in OrderCol],
                     text=[
                         item['name'] + '</br>'
-                        + 'Всего избирателей: ' + str(item['results'][election_id][electionType]['all']) + '</br>'
-                        + 'Голос в помещении: ' + str(item['results'][election_id][electionType]['in_room']) + '</br>'
-                        + 'Голос вне помещения: ' + str(item['results'][election_id][electionType]['out_room']) for item in OrderCol],
+                        + 'Всего избирателей: ' + str(item['results'][election_id][election_type]['all']) + '</br>'
+                        + 'Голос в помещении: ' + str(item['results'][election_id][election_type]['in_room']) + '</br>'
+                        + 'Голос вне помещения: ' + str(item['results'][election_id][election_type]['out_room']) for item in OrderCol],
                     customdata=[{
                                     'name': item['name'],
                                     'address': (item['address'] if 'address' in item else ''),
-                                    'total': item['results'][election_id][electionType]['all'],
-                                    'votes_inroom': item['results'][election_id][electionType]['in_room'],
-                                    'votes_outroom': item['results'][election_id][electionType]['out_room'],
-                                    'calculated_share': item['results'][election_id][electionType]['calculated_share']
+                                    'total': item['results'][election_id][election_type]['all'],
+                                    'votes_inroom': item['results'][election_id][election_type]['in_room'],
+                                    'votes_outroom': item['results'][election_id][election_type]['out_room'],
+                                    'calculated_share': item['results'][election_id][election_type]['calculated_share']
                                 } for item in OrderCol],
                     marker={
                         'color': colors[8],
@@ -805,7 +924,7 @@ def update_graph(electionType, level0_val,
                 )
             )
 
-    daataa = {
+    return {
         'data': markers,
         'layout': go.Layout(
             xaxis={
@@ -831,8 +950,6 @@ def update_graph(electionType, level0_val,
             hovermode=hovermode
         )
     }
-
-    return daataa
 
 
 ########################################################################################################################

@@ -141,84 +141,22 @@ app.layout = html.Div([
         html.Div([
             html.A([
                 html.Img(
-                    src="""data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQy""" +
-                        """AnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTE""" +
-                        """uZHRkJz48c3ZnIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDU2LjY5MyA1Ni42OTMiIGhlaWdodD0iNTYuNjkzcHgiIGlk""" +
-                        """PSJMYXllcl8xIiB2ZXJzaW9uPSIxLjEiIHZpZXdCb3g9IjAgMCA1Ni42OTMgNTYuNjkzIiB3aWR0aD0iNTYuNjkzcHgiIHhtb""" +
-                        """DpzcGFjZT0icHJlc2VydmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly""" +
-                        """93d3cudzMub3JnLzE5OTkveGxpbmsiPjxwYXRoIGZpbGw9IiM0NDQiIGQ9Ik01Mi44MzcsMTUuMDY1Yy0xLjgxMSwwLjgwNS0""" +
-                        """zLjc2LDEuMzQ4LTUuODA1LDEuNTkxYzIuMDg4LTEuMjUsMy42ODktMy4yMyw0LjQ0NC01LjU5MmMtMS45NTMsMS4xNTktNC4x""" +
-                        """MTUsMi02LjQxOCwyLjQ1NCAgYy0xLjg0My0xLjk2NC00LjQ3LTMuMTkyLTcuMzc3LTMuMTkyYy01LjU4MSwwLTEwLjEwNiw0L""" +
-                        """jUyNS0xMC4xMDYsMTAuMTA3YzAsMC43OTEsMC4wODksMS41NjIsMC4yNjIsMi4zMDMgIGMtOC40LTAuNDIyLTE1Ljg0OC00Lj""" +
-                        """Q0NS0yMC44MzMtMTAuNTZjLTAuODcsMS40OTItMS4zNjgsMy4yMjgtMS4zNjgsNS4wODJjMCwzLjUwNiwxLjc4NCw2LjYsNC4""" +
-                        """0OTYsOC40MTIgIGMtMS42NTYtMC4wNTMtMy4yMTUtMC41MDgtNC41NzgtMS4yNjVjLTAuMDAxLDAuMDQyLTAuMDAxLDAuMDg1""" +
-                        """LTAuMDAxLDAuMTI4YzAsNC44OTYsMy40ODQsOC45OCw4LjEwOCw5LjkxICBjLTAuODQ4LDAuMjMtMS43NDEsMC4zNTQtMi42N""" +
-                        """jMsMC4zNTRjLTAuNjUyLDAtMS4yODUtMC4wNjMtMS45MDItMC4xODJjMS4yODcsNC4wMTUsNS4wMTksNi45MzgsOS40NDEsNy""" +
-                        """4wMTkgIGMtMy40NTksMi43MTEtNy44MTYsNC4zMjctMTIuNTUyLDQuMzI3Yy0wLjgxNSwwLTEuNjItMC4wNDgtMi40MTEtMC4""" +
-                        """xNDJjNC40NzQsMi44NjksOS43ODYsNC41NDEsMTUuNDkzLDQuNTQxICBjMTguNTkxLDAsMjguNzU2LTE1LjQsMjguNzU2LTI4""" +
-                        """Ljc1NmMwLTAuNDM4LTAuMDA5LTAuODc1LTAuMDI4LTEuMzA5QzQ5Ljc2OSwxOC44NzMsNTEuNDgzLDE3LjA5Miw1Mi44MzcsM""" +
-                        """TUuMDY1eiIvPjwvc3ZnPg==""")
+                    src="/assets/icon-twitter.svg")
             ],
                 href="http://twitter.com/share?text=Найди аномалии на избирательных участках своего города&hashtags=Выборы,ЗаЧестныеВыборы&url=" + SITE,
                 target="_blank", id="left-button-twitter"),
             html.A([
                 html.Img(
-                    src="""data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQy""" +
-                        """AnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTE""" +
-                        """uZHRkJz48c3ZnIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDEwMCAxMDAiIGhlaWdodD0iMTAwcHgiIHZlcnNpb249IjEu""" +
-                        """MSIgdmlld0JveD0iMCAwIDEwMCAxMDAiIHdpZHRoPSIxMDBweCIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIgeG1sbnM9Imh0dHA6L""" +
-                        """y93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+PGcgaWQ9Im""" +
-                        """NvbG9yX3g1Rl9maWxsIj48cGF0aCBkPSJNODQuNDE4LDY5LjkyMWMtMi41MjcsMS41ODMtMTIuODA3LDIuMDU0LTE1LjI5NSw""" +
-                        """wLjI0NmMtMS4zNjUtMC45OTEtMi42MTMtMi4yMzItMy43OTktMy40MTIgICBjLTAuODI4LTAuODI2LTEuNzctMS4yMjctMi40""" +
-                        """ODItMi4xMjNjLTAuNTgtMC43MzQtMC45NzktMS41OTktMS41OTItMi4zMjFjLTEuMDMzLTEuMjE1LTIuNjI1LTIuMjQ4LTMuO""" +
-                        """Dg1LTAuNzY0ICAgYy0xLjg5NSwyLjIzMSwwLjI5OSw2LjYxNy0yLjIyOSw4LjI4NWMtMC44NDgsMC41Ni0xLjcwMywwLjcyMi""" +
-                        """0yLjc2MiwwLjY0MmwtMi4zNDYsMC4xMDdjLTEuMzc5LDAuMDI3LTMuNTYyLDAuMDM5LTUuMTI5LTAuMjQ0ICAgYy0xLjc1LTA""" +
-                        """uMzE1LTMuMTkzLTEuMjcxLTQuNzczLTEuOTczYy0zLjAwMi0xLjMzMS01Ljg2My0zLjE0NS04LjAzOS01LjY1OGMtNS45MjIt""" +
-                        """Ni44NDMtMTMuODc3LTE2LjI1NS0xNi45NjctMjQuODU5ICAgYy0wLjYzNy0xLjc2OC0yLjMxNC01LjI2Ny0wLjcyMy02Ljc4N""" +
-                        """GMyLjE2NC0xLjU3MiwxMi43ODktMi4wMTcsMTQuNDQ1LDAuNDE2YzAuNjc0LDAuOTg3LDEuMDk4LDIuNDM2LDEuNTc0LDMuNT""" +
-                        """U1ICAgYzAuNTkyLDEuMzk2LDAuOTE0LDIuNzEzLDEuODQsMy45NDljMC44MiwxLjA5NywxLjQyNiwyLjE5OSwyLjA2MSwzLjQ""" +
-                        """wMmMwLjcxMywxLjM0OSwxLjM4NSwyLjY0MywyLjI1MiwzLjg4NiAgIGMwLjU4OCwwLjg0NSwyLjE0MywyLjUyNCwzLjEyNSwy""" +
-                        """LjY1YzIuMzk4LDAuMzA3LDIuMjQ4LTUuNTIxLDIuMDctNi45NDVjLTAuMTctMS4zNzEtMC4yMTUtMi44MjUtMC4xNy00LjIxN""" +
-                        """iAgIGMwLjAzOS0xLjE4NiwwLjE0Ni0yLjg1Ny0wLjU1Ny0zLjgyNmMtMS4xNDUtMS41OC0zLjY5NS0wLjM5Ny0zLjg5NS0yLj""" +
-                        """UyYzAuNDIyLTAuNjAzLDAuMzMyLTEuMTM4LDMuMTQ2LTIuMDY0ICAgYzIuMjE1LTAuNzI5LDMuNjQ2LTAuNzA2LDUuMTA3LTA""" +
-                        """uNTg5YzIuOTgsMC4yMzksNi4xMzktMC41NjgsOS4wMTQsMC4zOThjMi43NDYsMC45MjUsMi4zMjIsNC44MjgsMi4yMyw3LjE2""" +
-                        """OCAgIGMtMC4xMjMsMy4xOTUsMC4wMDgsNi4zMTIsMCw5LjU1M2MtMC4wMDQsMS40NzctMC4wNjIsMi45MTIsMS43MzYsMi43O""" +
-                        """TNjMS42ODgtMC4xMTMsMS44NTktMS41MzIsMi42NjQtMi43MDQgICBjMS4xMjEtMS42MzMsMi4xNDgtMy4yODgsMy4yODktNC""" +
-                        """45MTZjMS41MzctMi4xOTksMi00LjY3LDMuNDQ3LTYuOTIzYzAuNTE4LTAuODA3LDAuOTYzLTIuNTY4LDEuNzYtMy4yMDUgICB""" +
-                        """jMC42MDQtMC40ODEsMS43NS0wLjI3NSwyLjQ4LTAuMjc1aDEuNzM2YzEuMzMsMC4wMTYsMi42ODYsMC4wMzUsNC4wNTEsMC4w""" +
-                        """ODNjMS45NjcsMC4wNjgsNC4xNy0wLjM1OSw2LjEyMS0wLjA4NCAgIGM4LjQxNiwxLjE4OC0xMC41NzgsMTkuMTkxLTkuNTksM""" +
-                        """jIuNDAzYzAuNjg0LDIuMjE4LDUuMDE2LDQuNzAzLDYuNTgsNi41MjFDODIuOTk4LDYxLjk5MSw4OS4zODksNjYuODEsODQuND""" +
-                        """E4LDY5LjkyMXoiIGZpbGw9IiM0NDQiLz48L2c+PGcgaWQ9Im9mZnNldF94NUZfcHJpbnRfeDVGX291dGxpbmUiLz48L3N2Zz4=""")
+                    src="/assets/icon-vk.svg")
             ], href="https://vk.com/share.php?url=" + SITE, target="_blank", id="left-button-vk"),
             html.A([
                 html.Img(
-                    src="""data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjwhRE9DVFlQRSBzdmcgIFBVQkxJQy""" +
-                        """AnLS8vVzNDLy9EVEQgU1ZHIDEuMS8vRU4nICAnaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTE""" +
-                        """uZHRkJz48c3ZnIGhlaWdodD0iNTEycHgiIGlkPSJMYXllcl8xIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCA1""" +
-                        """MTIgNTEyOyIgdmVyc2lvbj0iMS4xIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiIgd2lkdGg9IjUxMnB4IiB4bWw6c3BhY2U9InByZ""" +
-                        """XNlcnZlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy""" +
-                        """8xOTk5L3hsaW5rIj48Zz48cGF0aCBmaWxsPSIjNDQ0IiBkPSJNMjU2LDMyQzEzMi4zLDMyLDMyLDEzMi4zLDMyLDI1NnMxMDA""" +
-                        """uMywyMjQsMjI0LDIyNGMxMjMuNywwLDIyNC0xMDAuMywyMjQtMjI0UzM3OS43LDMyLDI1NiwzMnogTTI3Ni4yLDM1OC43ICAg""" +
-                        """Yy0wLjUsMTcuOC0xMy43LDI4LjgtMzAuOCwyOC4zYy0xNi40LTAuNS0yOS4zLTEyLjItMjguOC0zMC4xYzAuNS0xNy44LDE0L""" +
-                        """jEtMjkuMSwzMC41LTI4LjZDMjY0LjMsMzI4LjgsMjc2LjgsMzQwLjksMjc2LjIsMzU4Ljd6ICAgIE0zMjQuOSwyMzEuNGMtNC""" +
-                        """4yLDUuOS0xMy42LDEzLjUtMjUuNCwyMi43bC0xMy4xLDljLTYuNCw0LjktMTAuNCwxMC43LTEyLjUsMTcuM2MtMS4xLDMuNS0""" +
-                        """xLjksMTIuNi0yLjEsMTguNyAgIGMtMC4xLDEuMi0wLjgsMy45LTQuNSwzLjljLTMuNywwLTM1LDAtMzkuMSwwYy00LjEsMC00""" +
-                        """LjYtMi40LTQuNS0zLjZjMC42LTE2LjYsMy0zMC4zLDkuOS00MS4zYzkuMy0xNC44LDM1LjUtMzAuNCwzNS41LTMwLjQgICBjN""" +
-                        """C0zLDcuMS02LjIsOS41LTkuN2M0LjQtNiw4LTEyLjcsOC0xOS45YzAtOC4zLTItMTYuMi03LjMtMjIuOGMtNi4yLTcuNy0xMi""" +
-                        """45LTExLjQtMjUuOC0xMS40Yy0xMi43LDAtMjAuMSw2LjQtMjUuNCwxNC44ICAgYy01LjMsOC40LTQuNCwxOC4zLTQuNCwyNy4""" +
-                        """zSDE3NWMwLTM0LDguOS01NS43LDI3LjctNjguNWMxMi43LTguNywyOC45LTEyLjUsNDcuOC0xMi41YzI0LjgsMCw0NC41LDQu""" +
-                        """Niw2MS45LDE3LjggICBjMTYuMSwxMi4yLDI0LjYsMjkuNCwyNC42LDUyLjZDMzM3LDIwOS43LDMzMiwyMjEuNywzMjQuOSwyM""" +
-                        """zEuNHoiLz48L2c+PC9zdmc+"""),
+                    src="/assets/icon-help.svg"),
                 html.Span(['Помощь'])
             ], href="#", id="left-button-help"),
             html.A([
                 html.Img(
-                    src="""data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjxzdmcgaGVpZ2h0PSIyNCIgdmlld0""" +
-                        """JveD0iMCAwIDI0IDI0IiB3aWR0aD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTI""" +
-                        """yLjY1LDE0LjM5LDEyLDIyLjEzLDEuMzUsMTQuMzlhLjg0Ljg0LDAsMCwxLS4zLS45NEwyLjI3LDkuNjcsNC43MSwyLjE2QS40""" +
-                        """Mi40MiwwLDAsMSw0LjgyLDIsLjQzLjQzLDAsMCwxLDUuNCwyYS40Mi40MiwwLDAsMSwuMTEuMThMNy45NSw5LjY3aDguMWwyL""" +
-                        """jQ0LTcuNTFBLjQyLjQyLDAsMCwxLDE4LjYsMmEuNDMuNDMsMCwwLDEsLjU4LDAsLjQyLjQyLDAsMCwxLC4xMS4xOGwyLjQ0LD""" +
-                        """cuNTFMMjMsMTMuNDVBLjg0Ljg0LDAsMCwxLDIyLjY1LDE0LjM5WiIgZmlsbD0iIzQ0NCIvPjwvc3ZnPg=="""),
+                    src="/assets/icon-gitlab.svg"),
                 html.Span(['Sources'])
             ], href="https://gitlab.com/modos189/cikinfo", target="_blank", id="left-button-sources"),
         ], id="left-button"),

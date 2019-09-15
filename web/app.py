@@ -2,7 +2,6 @@ import dash
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 import dash_core_components as dcc
-import dash_daq as daq
 import dash_html_components as html
 import plotly.graph_objs as go
 import datetime
@@ -22,7 +21,6 @@ app.title = 'ЦИК Инфо | Удобный просмотр статисти�
 
 client = MongoClient()
 db = client.cikinfo
-#country_id = db.area.find_one({'name': 'Российская Федерация'}, {'_id': True})['_id']
 
 
 colors = ['#f44336', '#9C27B0', '#3F51B5', '#03A9F4',
@@ -39,6 +37,7 @@ election_type_localization = {
     'mngm': "по одномандатному (многомандатному) округу"
 }
 
+
 # Возвращает массив маркеров, состоящий из дат начала каждого года и дат выборов
 def get_marks():
     marks = {}
@@ -52,7 +51,6 @@ def get_marks():
             'zIndex': '1',
             'bottom': '26px'
         }}
-    print(marks)
     return marks
 
 
@@ -69,8 +67,13 @@ def get_elections_options(start_date, end_date):
 
 
 # Возвращает список доступных территорий указанного уровня приближения
-def get_area_options(level, p, election):
-    where = {'results_tags': election, 'level': level, 'max_depth': {'$ne': True}}
+def get_area_options(level, p, election_type, election):
+    where = {
+        'results_tags': election,
+        'level': level,
+        'max_depth': {'$ne': True},
+        'results.' + election + '.' + election_type: {'$exists': True}
+    }
     if len(p) > 0 and 'all' not in p:
         parent = [ObjectId(el) for el in p]
         where['parent_id'] = {"$in": parent}
@@ -409,7 +412,8 @@ def area_level_2_disabled(val, opt):
 ########################################################################################################################
 @app.callback(
     Output('left-info', 'children'),
-    [Input('election-type', 'value'),
+    [Input('graph', 'selectedData'),
+     Input('election-type', 'value'),
      Input('area-level-0', 'value'),
      Input('area-level-1', 'value'),
      Input('area-level-2', 'value'),
@@ -419,34 +423,54 @@ def area_level_2_disabled(val, opt):
      State('area-level-2', 'options'),
      State('area-level-3', 'options')]
 )
-def left_info_all(election_type, level0_val,
+def left_info_all(selectedData, election_type, level0_val,
                   level1_val, level2_val, level3_val, election_id,
                   level1_opt, level2_opt, level3_opt):
 
     if election_type is None or election_id is None:
         return []
 
-    data = database.get_area_by_levels(db, election_id, level0_val,
-                                       level1_val, level2_val, level3_val,
-                                       level1_opt, level2_opt, level3_opt, statistic_mode=True)
-    if data.count() == 0:
-        return []
+    is_selected_data = False
+    results = {}
+    if selectedData is None or len(selectedData['points']) == 0:
+        data = database.get_area_by_levels(db, election_type, election_id, level0_val,
+                                           level1_val, level2_val, level3_val,
+                                           level1_opt, level2_opt, level3_opt, statistic_mode=True)
+        if data.count() == 0:
+            return []
 
-    results = data[0]['results'][election_id][election_type]
+        results = data[0]['results'][election_id][election_type]
 
-    if 'all' not in results:
-        return []
+        if 'all' not in results:
+            return []
 
-    # Суммирование результатов, если выбрано более одной территории
-    if data.count() > 1:
-        for i, area in enumerate(data):
-            # Пропуск первого массива результатов
-            if i == 0:
-                continue
-            res = area['results'][election_id]
-            for k in res:
-                if str(k).isdigit():
-                    results[k] = results[k] + res[k]
+        # Суммирование результатов, если выбрано более одной территории
+        if data.count() > 1:
+            for i, area in enumerate(data):
+                # Пропуск первого массива результатов
+                if i == 0:
+                    continue
+                res = area['results'][election_id]
+                for k in res:
+                    if str(k).isdigit():
+                        results[k] = results[k] + res[k]
+
+    elif 'customdata' in selectedData['points'][0] and 'candidate' in selectedData['points'][0]['customdata']:
+        is_selected_data = True
+        results = {'all': 0, 'in_room': 0, 'out_room': 0, 'calculated_number_bulletin': 0, 'candidates': {}}
+        points = set()
+        for el in selectedData['points']:
+            if el['pointNumber'] not in points:
+                points.add(el['pointNumber'])
+
+                results['all'] += el['customdata']['total']
+                results['in_room'] += el['customdata']['in_room']
+                results['out_room'] += el['customdata']['out_room']
+                results['calculated_number_bulletin'] += el['customdata']['calculated_number_bulletin']
+
+            if el['customdata']['candidate'] not in results['candidates']:
+                results['candidates'][el['customdata']['candidate']] = 0
+            results['candidates'][el['customdata']['candidate']] += el['customdata']['candidate_votes']
 
     html_candidates = []
     for candidate in results['candidates']:
@@ -464,6 +488,7 @@ def left_info_all(election_type, level0_val,
         )
     results['calculated_share'] = round(float(results['calculated_number_bulletin']) / results['all'] * 100, 2)
 
+    css_class = " only-selected-dotes" if is_selected_data else ""
     return [
         html.Div([
             html.Div([
@@ -483,8 +508,8 @@ def left_info_all(election_type, level0_val,
             html.Div([
                 html.Div([html.B([str(results['calculated_share']) + '%']), ' явка']),
             ], className="left-info-block left-info-block-share"),
-        ], className="left-info-head"),
-        html.Div(html_candidates, className="left-info-block left-info-block-candidates"),
+        ], className="left-info-head"+css_class),
+        html.Div(html_candidates, className="left-info-block left-info-block-candidates"+css_class),
     ]
 
 
@@ -496,12 +521,13 @@ def left_info_all(election_type, level0_val,
 @app.callback(
     Output('area-level-3', 'options'),
     [Input('area-level-2', 'value'),
+     Input('election-type', 'value'),
      Input('elections', 'value')])
-def area_level_3_options(level_2, election):
+def area_level_3_options(level_2, election_type, election):
     if level_2 is None or len(level_2) == 0:
         return []
     level = 3
-    r = get_area_options(level, level_2, election)
+    r = get_area_options(level, level_2, election_type, election)
     return r
 
 
@@ -509,33 +535,36 @@ def area_level_3_options(level_2, election):
     [Output('graph-lock', 'children'),
      Output('area-level-2', 'options')],
     [Input('area-level-1', 'value'),
+     Input('election-type', 'value'),
      Input('elections', 'value')])
-def area_level_2_options(parent, election):
+def area_level_2_options(parent, election_type, election):
     if parent is None or len(parent) == 0:
         return "lock", []
     level = 2
-    return "unlock", get_area_options(level, parent, election)
+    return "unlock", get_area_options(level, parent, election_type, election)
 
 
 @app.callback(
     Output('area-level-1', 'options'),
-    [Input('elections', 'value')])
-def area_level_1_options(election):
-    if election is None:
+    [Input('election-type', 'value'),
+     Input('elections', 'value')])
+def area_level_1_options(election_type, election):
+    if election_type is None or election is None:
         return []
     level = 1
-    return get_area_options(level, [], election)
+    return get_area_options(level, [], election_type, election)
 
 
 @app.callback(
     [Output('area-level-0', 'options'), Output('area-level-0', 'value')],
-    [Input('elections', 'value')])
-def area_level_0_options(election):
-    if election is None:
+    [Input('election-type', 'value'),
+     Input('elections', 'value')])
+def area_level_0_options(election_type, election):
+    if election_type is None or election is None:
         raise PreventUpdate
 
     level = 0
-    options = get_area_options(level, [], election)
+    options = get_area_options(level, [], election_type, election)
 
     if len(options) == 0:
         return [], None
@@ -581,7 +610,7 @@ def update_graph(graph_lock, election_type, level0_val,
     if election_type is None or election_id is None:
         return {}
 
-    data = database.get_area_by_levels(db, election_id, level0_val,
+    data = database.get_area_by_levels(db, election_type, election_id, level0_val,
                                        level1_val, level2_val, level3_val,
                                        level1_opt, level2_opt, level3_opt)
     uiks = list(data)
@@ -633,9 +662,12 @@ def update_graph(graph_lock, election_type, level0_val,
                                     'name': item['name'],
                                     'address': (item['address'] if 'address' in item else ''),
                                     'total': item['results'][election_id][election_type]['all'],
-                                    'votes_inroom': item['results'][election_id][election_type]['in_room'],
-                                    'votes_outroom': item['results'][election_id][election_type]['out_room'],
-                                    'calculated_share': item['results'][election_id][election_type]['calculated_share']
+                                    'in_room': item['results'][election_id][election_type]['in_room'],
+                                    'out_room': item['results'][election_id][election_type]['out_room'],
+                                    'calculated_share': item['results'][election_id][election_type]['calculated_share'],
+                                    'candidate': candidate,
+                                    'candidate_votes': item['results'][election_id][election_type]['candidates'][candidate],
+                                    'calculated_number_bulletin': item['results'][election_id][election_type]['calculated_number_bulletin']
                                 } for item in uiks],
                     name=textwrap.fill(candidate, 32).replace("\n", "<br>"),
                     mode='markers',
@@ -646,7 +678,7 @@ def update_graph(graph_lock, election_type, level0_val,
                         'opacity': point_opacity,
                         'line': {'width': 0.1, 'color': 'white'}
                     }
-            )
+                )
             )
             k += 1
 
@@ -660,7 +692,7 @@ def update_graph(graph_lock, election_type, level0_val,
                 uiks[0]['results'][election_id][election_type]['candidates'].keys() != uiks[-1]['results'][election_id][election_type]['candidates'].keys():
             return {}
 
-        parent_data = database.get_area_by_levels(db, election_id, level0_val,
+        parent_data = database.get_area_by_levels(db, election_type, election_id, level0_val,
                                            level1_val, level2_val, level3_val,
                                            level1_opt, level2_opt, level3_opt, statistic_mode=True)
         if parent_data.count() == 0:
@@ -808,8 +840,8 @@ def update_graph(graph_lock, election_type, level0_val,
                                 'name': item['name'],
                                 'address': (item['address'] if 'address' in item else ''),
                                 'total': item['results'][election_id][election_type]['all'],
-                                'votes_inroom': item['results'][election_id][election_type]['in_room'],
-                                'votes_outroom': item['results'][election_id][election_type]['out_room'],
+                                'in_room': item['results'][election_id][election_type]['in_room'],
+                                'out_room': item['results'][election_id][election_type]['out_room'],
                                 'calculated_share': item['results'][election_id][election_type]['calculated_share']
                             } for item in uiks],
                 # name=textwrap.fill(m['name_simple'], 32).replace("\n", "<br>"),
@@ -850,8 +882,8 @@ def update_graph(graph_lock, election_type, level0_val,
                                     'name': item['name'],
                                     'address': (item['address'] if 'address' in item else ''),
                                     'total': item['results'][election_id][election_type]['all'],
-                                    'votes_inroom': item['results'][election_id][election_type]['in_room'],
-                                    'votes_outroom': item['results'][election_id][election_type]['out_room'],
+                                    'in_room': item['results'][election_id][election_type]['in_room'],
+                                    'out_room': item['results'][election_id][election_type]['out_room'],
                                     'calculated_share': item['results'][election_id][election_type]['calculated_share']
                                 } for item in OrderCol],
                     marker={
@@ -913,8 +945,8 @@ def display_selected_data(selectedData, election_id):
                 html.Div([
                     html.P(el['customdata']['name'] + ' | ' +
                            'Всего избирателей: ' + str(el['customdata']['total']) + ' | ' +
-                           'Голосов в помещении: ' + str(el['customdata']['votes_inroom']) + ' | ' +
-                           'Голосов вне помещения: ' + str(el['customdata']['votes_outroom']) + ' | ' +
+                           'Голосов в помещении: ' + str(el['customdata']['in_room']) + ' | ' +
+                           'Голосов вне помещения: ' + str(el['customdata']['out_room']) + ' | ' +
                            'Явка: ' + str(el['customdata']['calculated_share']) + '%'),
                     html.P(el['customdata']['address']),
                 ], className="selected-data-block")

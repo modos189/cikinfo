@@ -8,4 +8,3 @@ beautifulsoup4~=4.6.3
 lxml~=4.2.5
 requests~=2.20.1
 dash==1.2.0
-dash-daq==0.1.0

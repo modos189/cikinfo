@@ -161,20 +161,6 @@ if __name__ == '__main__':
         main()
     )
 
-    # Первый этап - создание записи о выборах с названием и датой их проведения
-    # database.add_election(
-    #     db,
-    #     ELECTION_NAME,
-    #     START_URL,
-    #     helpers.get_datetime(ELECTION_DATE)
-    # )
-
-    # loop = asyncio.get_event_loop()
-    # loop.run_until_complete(
-    #     # Второй этап - загрузка данных с сайта избиркома
-    #     #download_data()
-    #
-    # )
-    # Третий этап - соотнесение УИКов с из адресами в реальном мире
+    # Соотнесение УИКов с из адресами в реальном мире
     # Готовый файл cik.sqlite можно взять по адресу: http://gis-lab.info/qa/cik-data.html
     # parse_address('cik.sqlite')

@@ -121,6 +121,8 @@ body {
 
 .left-info-head {
     display: flex;
+    margin-bottom: 5px;
+    border-radius: 5px;
 }
 
 #left-info .left-info-name {
@@ -290,7 +292,6 @@ body {
 }
 
 .left-info-block {
-    margin-bottom: 5px;
     border-radius: 3px;
     overflow: hidden;
 }
@@ -300,20 +301,24 @@ body {
     flex-direction: column-reverse;
 }
 
+.only-selected-dotes {
+    background: repeating-linear-gradient( -55deg, #616985, #616985 40px, #999 40px, #999 80px );
+}
+
 .left-info-block > div {
     padding: 5px !important;
-    border: 1px solid rgba(33, 33, 33, 0.8);
-    border-top: 1px solid rgba(75, 75, 75, 0.8);
-    border-right: 1px solid rgba(75, 75, 75, 0.8);
-    background: #353535;
+    border: 1px solid #00000073;
+    border-top: 1px solid #ffffff1a;
+    border-right: 1px solid #ffffff1a;
+    background: #000000c7;
     color: #fff;
     transition: background-color .1s, border-top-color .1s;
 }
 
 .left-info-block > div:hover {
-    background-color: #252525;
-    border-top-color: rgba(75, 75, 75, 0.2);
-    border-right-color: rgba(75, 75, 75, 0.2);
+    background-color: #111111ee;
+    border-top-color: #0000001c;
+    border-right-color: #111111ee;
 }
 
 .left-info-block-stat {

@@ -27,7 +27,11 @@ def get_area_by_levels(db, election_type, election_id, level0_val,
     if max_zoom_area is not None and 'all' in max_zoom_area:
         if statistic_mode:
             if len(area_all):
-                parent_ids.append(ObjectId(area_all[0]))
+                if type(area_all) is str:
+                    parent_ids.append(ObjectId(area_all))
+                elif type(area_all) is list:
+                    parent_ids.append(ObjectId(area_all[0]))
+
         else:
             for i, a in enumerate(max_zoom_opt):
                 if a['value'] != 'all' and type(a['value']) is str:

@@ -533,3 +533,9 @@ body {
 .tab span {
     margin: auto;
 }
+
+#filter {
+    margin-bottom: 10px;
+    width: 100%;
+    box-sizing: border-box;
+}

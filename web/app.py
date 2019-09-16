@@ -195,6 +195,12 @@ app.layout = html.Div([
             dcc.Graph(id='graph'),
             html.Span('https://cikinfo.modos189.ru', id="watermark")
         ]),
+        dcc.Input(
+            placeholder='Фильтр УИКов (ввод номеров через запятую)',
+            type='text',
+            value='',
+            id='filter'
+        ),
         html.Div(id='selected-data')
     ], className="main-bar"),
     html.Div([
@@ -539,7 +545,7 @@ def area_level_3_options(level_2, election_type, election):
      Input('elections', 'value')])
 def area_level_2_options(parent, election_type, election):
     if parent is None or len(parent) == 0:
-        return "lock", []
+        return "unlock", []
     level = 2
     return "unlock", get_area_options(level, parent, election_type, election)
 
@@ -589,6 +595,7 @@ def election_types_options(election):
 @app.callback(
     Output('graph', 'figure'),
     [Input('graph-lock', 'children'),
+     Input('filter', 'value'),
      Input('election-type', 'value'),
      Input('area-level-0', 'value'),
      Input('area-level-1', 'value'),
@@ -600,7 +607,7 @@ def election_types_options(election):
      State('area-level-3', 'options'),
      State('elections', 'value')]
 )
-def update_graph(graph_lock, election_type, level0_val,
+def update_graph(graph_lock, filter, election_type, level0_val,
                  level1_val, level2_val, level3_val, tab,
                  level1_opt, level2_opt, level3_opt, election_id):
 
@@ -614,6 +621,14 @@ def update_graph(graph_lock, election_type, level0_val,
                                        level1_val, level2_val, level3_val,
                                        level1_opt, level2_opt, level3_opt)
     uiks = list(data)
+
+    filter = filter.split(",")
+    if len(filter) > 2:
+        new_uiks = []
+        for item in uiks:
+            if str(item['num']) in filter:
+                new_uiks.append(item)
+        uiks = new_uiks
 
     l = data.count()
     if l < 500:
@@ -680,6 +695,7 @@ def update_graph(graph_lock, election_type, level0_val,
                     }
                 )
             )
+
             k += 1
 
     if tab == '1':

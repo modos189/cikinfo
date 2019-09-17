@@ -166,10 +166,10 @@ def table_meta(html):
                     if "early" not in already and "досрочно" in title:
                         meta[i] = {'name': "early", 'is_meta': True}
                         already.append("early")
-                    elif "in_room" not in already and ("в помещении" in title or "выданных избирателям на избирательном" in title):
+                    elif "in_room" not in already and ("в помещен" in title or "выданных избирателям на избирательном" in title):
                         meta[i] = {'name': "in_room", 'is_meta': True}
                         already.append("in_room")
-                    elif "out_room" not in already and "вне помещения" in title:
+                    elif "out_room" not in already and "вне помещен" in title:
                         meta[i] = {'name': "out_room", 'is_meta': True}
                         already.append("out_room")
                     elif "invalid" not in already and " недействительных" in title:

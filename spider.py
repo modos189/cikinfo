@@ -65,14 +65,15 @@ async def get_elections(session, url, params=None):
         page_html = await helpers.async_download_url(session, url, fetch_data)
         items = parse.parse_list_elections(page_html, str(urovproved))
 
-        # Фильтр региона, если пользователь указал желаемый
-        if 'region_name' in params:
-            items[:] = [el for el in items if el['region'][1] == params['region_name']]
+        if len(items):
+            # Фильтр региона, если пользователь указал желаемый
+            if 'region_name' in params:
+                items[:] = [el for el in items if len(el['region']) > 1 and el['region'][1] == params['region_name']]
 
-        # Фильтр вида выборов/референдумов
-        items[:] = [el for el in items if el['vidvibref'] in data['vidvibref']]
+            # Фильтр вида выборов/референдумов
+            items[:] = [el for el in items if el['vidvibref'] in data['vidvibref']]
 
-        elections.extend(items)
+            elections.extend(items)
 
     elections = sorted(elections, key=lambda x: x['date'])
 

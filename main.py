@@ -108,6 +108,10 @@ async def main():
                 for i, el in enumerate(elections, start=1):
                     print("%i [%s] %s" % (i, el['date'].date(), el['title']))
 
+                if len(elections) == 0:
+                    print("Выборов нет. Выход.")
+                    return
+
                 print("Будет загружено", len(elections), "событий.")
 
                 # Отключение интерактивного режима, если указан ключ --y

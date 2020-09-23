@@ -1,7 +1,10 @@
 import asyncio
+import re
+
 import aiohttp
 import async_timeout
 import copy
+from docopt import docopt
 
 from datetime import datetime
 from hashlib import sha1
@@ -19,7 +22,10 @@ async def fetch(session, url, params, retry=0):
     try:
         async with async_timeout.timeout(5):
             async with session.post(url, data=params, headers=HEADERS) as response:
-                return await response.text(encoding='windows-1251')
+                try:
+                    return await response.text(encoding='windows-1251')
+                except UnicodeDecodeError as e:
+                    return await response.text(encoding='UTF-8')
 
     except (asyncio.TimeoutError, OSError, aiohttp.ClientConnectionError) as err:
         retry += 1
@@ -29,7 +35,10 @@ async def fetch(session, url, params, retry=0):
         return await fetch(session, url, params, retry=retry)
 
 
-async def async_download_url(session, url, params={}):
+async def async_download_url(session, url, params={}, bypass_captcha="yes"):
+    if bypass_captcha == "yes":
+        url = try_bypass_captcha(url)
+
     html = await fetch(session, url, params)
     return html
 
@@ -42,7 +51,7 @@ def get_datetime(s):
         "мая", "июня", "июля", "августа",
         "сентября", "октября", "ноября", "декабря"
     ]
-    month = local_months.index(s[1])+1
+    month = local_months.index(s[1]) + 1
     return datetime(int(s[2]), month, int(s[0]))
 
 
@@ -78,3 +87,11 @@ def sum_results(data1, data2):
         data_new['calculated_share'] = round(float(data_new['invalid'] + data_new['valid']) / data_new['all'] * 100, 2)
 
     return data_new
+
+
+# Попытка обхода капчи, введённой на страницах избиркома в 2020 году
+# Способ обхода найден здесь: https://www.facebook.com/spbelect/posts/4029296857084586
+def try_bypass_captcha(url):
+    return re.sub(r"https?:\/\/www\.(?:[^.]+?\.)?vybory\.izbirkom\.ru(.*?)\?action\=show(.*)",
+                  r"http://www.moscow_reg.vybory.izbirkom.ru\1?action=show\2",
+                  url)

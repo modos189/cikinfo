@@ -2,7 +2,7 @@
 
 Usage:
   main.py
-  main.py <function> [--date=<date>] [--urovproved=<urovproved>] [--vidvibref=<vidvibref>] [--region=<region>] [-y] [--no-start-info]
+  main.py <function> [--date=<date>] [--urovproved=<urovproved>] [--vidvibref=<vidvibref>] [--region=<region>] [--bypass-captcha=<bypass-captcha>] [-y] [--no-start-info]
 
 Examples:
   main.py update                      Get elections in current year
@@ -13,6 +13,8 @@ Examples:
 --urovproved - 1,2,3,4. Default: 1,2
 
 --vidvibref - 0,1,2,3,4. Default: all
+
+--bypass-captcha - yes,no. Default: yes
 
 Options:
   -h --help
@@ -66,6 +68,7 @@ def parse_address(filename):
 async def main():
     async with aiohttp.ClientSession() as _session:
         arguments = docopt(__doc__)
+        bypass_captcha = arguments['--bypass-captcha'] if arguments['--bypass-captcha'] else "yes"
 
         if not arguments['--no-start-info']:
             repo = Repo(search_parent_directories=True)
@@ -102,7 +105,7 @@ async def main():
                     params['region_name'] = arguments['--region']
 
                 # Загрузка списка выборов
-                elections = await spider.get_elections(_session, IZBIRKOM_URL, params)
+                elections = await spider.get_elections(_session, IZBIRKOM_URL, params, bypass_captcha=bypass_captcha)
 
                 print()
                 for i, el in enumerate(elections, start=1):
@@ -125,13 +128,13 @@ async def main():
                 # Перебор всех выборов
                 for i, el in enumerate(elections, start=1):
                     print(i, '/', len(elections))
-                    html = await helpers.async_download_url(_session, el['url'])
+                    html = await helpers.async_download_url(_session, el['url'], bypass_captcha=bypass_captcha)
                     sub_elections = parse.get_elections_type(html)
 
                     if sub_elections['status'] and len(sub_elections['types']) == 0:
                         nodes = parse.selects(html)
                         if nodes is not None and len(nodes) > 0:
-                            htq = await helpers.async_download_url(_session, nodes[-1].url)
+                            htq = await helpers.async_download_url(_session, nodes[-1].url, bypass_captcha=bypass_captcha)
                             sub_elections = parse.get_elections_type(htq)
 
                     if not sub_elections['status'] or len(sub_elections['types']) == 0:
@@ -151,7 +154,7 @@ async def main():
                     for election_type, url in sub_elections['types'].items():
                         await spider.download_election(
                             db, _session, election_id, election_type, None, None, el['region'][-1], url,
-                            debug=False, progressbar=True
+                            debug=False, progressbar=True, bypass_captcha=bypass_captcha
                         )
 
         else:

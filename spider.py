@@ -4,7 +4,7 @@ from modules import helpers, parse, database
 
 
 # Возвращает массив всех выборов. Опционально с передачей параметров
-async def get_elections(session, url, params=None):
+async def get_elections(session, url, params=None, bypass_captcha="yes"):
     if params is None:
         params = {}
 
@@ -62,7 +62,7 @@ async def get_elections(session, url, params=None):
 
         fetch_data = data.copy()
         fetch_data.update({'urovproved': str(urovproved)})
-        page_html = await helpers.async_download_url(session, url, fetch_data)
+        page_html = await helpers.async_download_url(session, url, fetch_data, bypass_captcha=bypass_captcha)
         items = parse.parse_list_elections(page_html, str(urovproved))
 
         if len(items):
@@ -83,7 +83,7 @@ async def get_elections(session, url, params=None):
 # Производит рекурсивную загрузку страниц выборов, начиная областями и республиками, заканчивая сайтами ИК субъектов
 async def download_election(db, _session, election_id, election_type, parent_pid, parent_num, parent_name, url,
                             level=0, debug=False, progressbar=False, _progressbar_lvl=0, _candidates=[],
-                            _pbar_inner=None):
+                            bypass_captcha="yes", _pbar_inner=None):
     pbar = None
     sum_results = {}
 
@@ -97,7 +97,7 @@ async def download_election(db, _session, election_id, election_type, parent_pid
     else:
         parent_id = db.area.insert_one(param).inserted_id
 
-    html = await helpers.async_download_url(_session, url)
+    html = await helpers.async_download_url(_session, url, bypass_captcha=bypass_captcha)
     nodes = parse.selects(html)
 
     # Перебор значений селектора под шапкой
@@ -112,7 +112,7 @@ async def download_election(db, _session, election_id, election_type, parent_pid
                     db, _session, election_id, election_type, parent_id, node.num, node.name, node.url,
                     level=level + 1, debug=debug, progressbar=progressbar,
                     _progressbar_lvl=_progressbar_lvl, _candidates=_candidates,
-                    _pbar_inner=pbar
+                    bypass_captcha=bypass_captcha, _pbar_inner=pbar
                 )
                 sum_results = helpers.sum_results(sum_results, res)
                 # if pbar:
@@ -128,7 +128,7 @@ async def download_election(db, _session, election_id, election_type, parent_pid
                             db, _session, election_id, election_type, parent_id, node.num, node.name, node.url,
                             level=level + 1, debug=debug, progressbar=progressbar,
                             _progressbar_lvl=_progressbar_lvl, _candidates=_candidates,
-                            _pbar_inner=pbar
+                            bypass_captcha=bypass_captcha, _pbar_inner=pbar
                         )
                     ) for node in small_nodes
                 ]
@@ -146,14 +146,14 @@ async def download_election(db, _session, election_id, election_type, parent_pid
 
         # При этом есть ссылка на сайт избирательной комиссии субъекта РФ
         if local_ik_url is not None:
-            itog_html = await helpers.async_download_url(_session, local_ik_url)
+            itog_html = await helpers.async_download_url(_session, local_ik_url, bypass_captcha=bypass_captcha)
             region = parse.get_region_from_subdomain_url(local_ik_url)
 
             # itog_url = parse.url_local_itog(html)
             # if itog_url:
             #     region = parse.get_region_from_subdomain_url(itog_url)
             #     print(itog_url)
-            #     itog_html = await helpers.async_download_url(_session, itog_url)
+            #     itog_html = await helpers.async_download_url(_session, itog_url, bypass_captcha=bypass_captcha)
 
             meta = parse.table_meta(itog_html)
             uiks = parse.table_results(itog_html, meta)

@@ -8,7 +8,7 @@
 
 Установка необходимых компонентов в Ubuntu или Debian:
 
-`sudo apt install build-essential python3-dev python3-pip mongodb`
+`sudo apt install build-essential python3-dev python3-pip mongodb libxml2-dev libxslt1-dev`
 
 `sudo pip3 install venv`
 
